@@ -61,6 +61,8 @@ trunk/vhdl/makefile -text
 trunk/vhdl/mem_ctrl.vhd -text
 trunk/vhdl/mips_cpu.vhd -text
 trunk/vhdl/mips_pack.vhd -text
+trunk/vhdl/mlite_cpu.vhd -text
+trunk/vhdl/mlite_pack.vhd -text
 trunk/vhdl/mult.vhd -text
 trunk/vhdl/pc_next.vhd -text
 trunk/vhdl/ram.vhd -text
