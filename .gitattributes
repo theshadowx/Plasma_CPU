@@ -1,4 +1,25 @@
 * text=auto !eol
+tags/Version_1_0/tools/convert.c -text
+tags/Version_1_0/tools/cpu.gif -text
+tags/Version_1_0/tools/index.shtml -text
+tags/Version_1_0/tools/makefile -text
+tags/Version_1_0/tools/mips.c -text
+tags/Version_1_0/tools/output.txt -text
+tags/Version_1_0/tools/test.c -text
+tags/Version_1_0/vhdl/alu.vhd -text
+tags/Version_1_0/vhdl/bus_mux.vhd -text
+tags/Version_1_0/vhdl/code.txt -text
+tags/Version_1_0/vhdl/control.vhd -text
+tags/Version_1_0/vhdl/makefile -text
+tags/Version_1_0/vhdl/mem_ctrl.vhd -text
+tags/Version_1_0/vhdl/mips_cpu.vhd -text
+tags/Version_1_0/vhdl/mips_pack.vhd -text
+tags/Version_1_0/vhdl/mult.vhd -text
+tags/Version_1_0/vhdl/pc_next.vhd -text
+tags/Version_1_0/vhdl/ram.vhd -text
+tags/Version_1_0/vhdl/reg_bank.vhd -text
+tags/Version_1_0/vhdl/shifter.vhd -text
+tags/Version_1_0/vhdl/tbench.vhd -text
 tags/arelease/tools/convert.c -text
 tags/arelease/tools/cpu.gif -text
 tags/arelease/tools/index.shtml -text
