@@ -47,7 +47,7 @@ trunk/tools/count.c -text
 trunk/tools/cpu.gif -text
 trunk/tools/index.shtml -text
 trunk/tools/makefile -text
-trunk/tools/mips.c -text
+trunk/tools/mlite.c -text
 trunk/tools/opcodes.asm -text
 trunk/tools/output.txt -text
 trunk/tools/pi.c -text
@@ -59,8 +59,6 @@ trunk/vhdl/code.txt -text
 trunk/vhdl/control.vhd -text
 trunk/vhdl/makefile -text
 trunk/vhdl/mem_ctrl.vhd -text
-trunk/vhdl/mips_cpu.vhd -text
-trunk/vhdl/mips_pack.vhd -text
 trunk/vhdl/mlite_cpu.vhd -text
 trunk/vhdl/mlite_pack.vhd -text
 trunk/vhdl/mult.vhd -text
