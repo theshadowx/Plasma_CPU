@@ -41,6 +41,7 @@ tags/arelease/vhdl/ram.vhd -text
 tags/arelease/vhdl/reg_bank.vhd -text
 tags/arelease/vhdl/shifter.vhd -text
 tags/arelease/vhdl/tbench.vhd -text
+trunk/tools/bintohex.c -text
 trunk/tools/boot.asm -text
 trunk/tools/convert.c -text
 trunk/tools/count.c -text
@@ -68,3 +69,4 @@ trunk/vhdl/reg_bank.vhd -text
 trunk/vhdl/shifter.vhd -text
 trunk/vhdl/simili.cmd -text
 trunk/vhdl/tbench.vhd -text
+trunk/vhdl/uart.vhd -text
