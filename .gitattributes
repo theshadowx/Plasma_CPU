@@ -49,6 +49,7 @@ trunk/tools/makefile -text
 trunk/tools/mips.c -text
 trunk/tools/opcodes.asm -text
 trunk/tools/output.txt -text
+trunk/tools/pi.c -text
 trunk/tools/test.c -text
 trunk/tools/tracehex.c -text
 trunk/vhdl/alu.vhd -text
