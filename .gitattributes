@@ -43,6 +43,7 @@ tags/arelease/vhdl/shifter.vhd -text
 tags/arelease/vhdl/tbench.vhd -text
 trunk/tools/boot.asm -text
 trunk/tools/convert.c -text
+trunk/tools/count.c -text
 trunk/tools/cpu.gif -text
 trunk/tools/index.shtml -text
 trunk/tools/makefile -text
