@@ -1,1 +1,22 @@
 * text=auto !eol
+trunk/tools/convert.c -text
+trunk/tools/cpu.gif -text
+trunk/tools/index.shtml -text
+trunk/tools/makefile -text
+trunk/tools/mips.c -text
+trunk/tools/output.txt -text
+trunk/tools/test.c -text
+trunk/vhdl/alu.vhd -text
+trunk/vhdl/bus_mux.vhd -text
+trunk/vhdl/code.txt -text
+trunk/vhdl/control.vhd -text
+trunk/vhdl/makefile -text
+trunk/vhdl/mem_ctrl.vhd -text
+trunk/vhdl/mips_cpu.vhd -text
+trunk/vhdl/mips_pack.vhd -text
+trunk/vhdl/mult.vhd -text
+trunk/vhdl/pc_next.vhd -text
+trunk/vhdl/ram.vhd -text
+trunk/vhdl/reg_bank.vhd -text
+trunk/vhdl/shifter.vhd -text
+trunk/vhdl/tbench.vhd -text
