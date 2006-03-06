@@ -122,7 +122,6 @@ trunk/tools/boot.asm -text
 trunk/tools/convert.c -text
 trunk/tools/count.c -text
 trunk/tools/cpu.gif -text
-trunk/tools/index.shtml -text
 trunk/tools/makefile -text
 trunk/tools/mlite.c -text
 trunk/tools/no_os.c -text
