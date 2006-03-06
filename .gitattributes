@@ -104,6 +104,7 @@ trunk/vhdl/pipeline.vhd -text
 trunk/vhdl/plasma.vhd -text
 trunk/vhdl/plasma_if.vhd -text
 trunk/vhdl/ram.vhd -text
+trunk/vhdl/ram_xilinx.vhd -text
 trunk/vhdl/reg_bank.vhd -text
 trunk/vhdl/shifter.vhd -text
 trunk/vhdl/simili.cmd -text
