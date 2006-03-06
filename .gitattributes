@@ -76,9 +76,11 @@ trunk/tools/cpu.gif -text
 trunk/tools/index.shtml -text
 trunk/tools/makefile -text
 trunk/tools/mlite.c -text
+trunk/tools/no_os.c -text
 trunk/tools/opcodes.asm -text
 trunk/tools/output.txt -text
 trunk/tools/pi.c -text
+trunk/tools/ram_image.c -text
 trunk/tools/test.c -text
 trunk/tools/tracehex.c -text
 trunk/vhdl/alu.vhd -text
