@@ -119,6 +119,7 @@ trunk/kernel/rtos_test.c -text
 trunk/kernel/uart.c -text
 trunk/tools/bintohex.c -text
 trunk/tools/boot.asm -text
+trunk/tools/bootldr.c -text
 trunk/tools/convert.c -text
 trunk/tools/count.c -text
 trunk/tools/cpu.gif -text
