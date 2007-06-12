@@ -150,6 +150,7 @@ trunk/vhdl/mult.vhd -text
 trunk/vhdl/pc_next.vhd -text
 trunk/vhdl/pipeline.vhd -text
 trunk/vhdl/plasma.vhd -text
+trunk/vhdl/plasma_if.ucf -text
 trunk/vhdl/plasma_if.vhd -text
 trunk/vhdl/ram.vhd -text
 trunk/vhdl/ram_xilinx.vhd -text
