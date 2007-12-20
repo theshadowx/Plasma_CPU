@@ -161,5 +161,6 @@ trunk/vhdl/ram_xilinx.vhd -text
 trunk/vhdl/reg_bank.vhd -text
 trunk/vhdl/shifter.vhd -text
 trunk/vhdl/simili.cmd -text
+trunk/vhdl/spartan3e.ucf -text
 trunk/vhdl/tbench.vhd -text
 trunk/vhdl/uart.vhd -text
