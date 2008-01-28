@@ -145,6 +145,7 @@ trunk/vhdl/bus_mux.vhd -text
 trunk/vhdl/code.txt -text
 trunk/vhdl/control.vhd -text
 trunk/vhdl/ddr_ctrl.vhd -text
+trunk/vhdl/eth_dma.vhd -text
 trunk/vhdl/makefile -text
 trunk/vhdl/mem_ctrl.vhd -text
 trunk/vhdl/mlite_cpu.vhd -text
