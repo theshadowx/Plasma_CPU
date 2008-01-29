@@ -110,6 +110,7 @@ tags/arelease/vhdl/ram.vhd -text
 tags/arelease/vhdl/reg_bank.vhd -text
 tags/arelease/vhdl/shifter.vhd -text
 tags/arelease/vhdl/tbench.vhd -text
+trunk/kernel/ethernet.c -text
 trunk/kernel/filesys.c -text
 trunk/kernel/http.c -text
 trunk/kernel/libc.c -text
