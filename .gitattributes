@@ -118,6 +118,7 @@ trunk/kernel/libc.c -text
 trunk/kernel/makefile -text
 trunk/kernel/math.c -text
 trunk/kernel/netutil.c -text
+trunk/kernel/os_stubs.c -text
 trunk/kernel/rtos.c -text
 trunk/kernel/rtos.h -text
 trunk/kernel/rtos_test.c -text
