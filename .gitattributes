@@ -145,6 +145,7 @@ trunk/tools/test.c -text
 trunk/tools/tracehex.c -text
 trunk/vhdl/alu.vhd -text
 trunk/vhdl/bus_mux.vhd -text
+trunk/vhdl/cache.vhd -text
 trunk/vhdl/code.txt -text
 trunk/vhdl/control.vhd -text
 trunk/vhdl/ddr_ctrl.vhd -text
