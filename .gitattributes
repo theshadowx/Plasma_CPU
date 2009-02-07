@@ -159,6 +159,7 @@ trunk/vhdl/pc_next.vhd -text
 trunk/vhdl/pipeline.vhd -text
 trunk/vhdl/plasma.vhd -text
 trunk/vhdl/plasma_3e.vhd -text
+trunk/vhdl/plasma_S3E.npl -text
 trunk/vhdl/plasma_if.ucf -text
 trunk/vhdl/plasma_if.vhd -text
 trunk/vhdl/ram.vhd -text
