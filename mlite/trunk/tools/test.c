@@ -16,7 +16,7 @@
 --
 --   Save the opcodes in "code.txt".
 --
---   The interrupt vector is set to address 0x30.
+--   Testing subversion.
 --------------------------------------------------------------------*/
 #ifndef WIN32
 #undef putchar
