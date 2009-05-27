@@ -74,12 +74,13 @@ static void FtpdReceiver(IPSocket *socket)
       bytes = IPRead(socket, buf, sizeof(buf));
       fwrite(buf, 1, bytes, info->file);
    } while(bytes);
+
    if(state > IP_TCP)
    {
       fclose(info->file);
-      IPClose(socket);
       info->done = 1;
       IPPrintf(info->socket, "226 Done\r\n");
+      IPClose(socket);
       return;
    }
 }
@@ -109,6 +110,10 @@ static void FtpdServer(IPSocket *socket)
       socket->timeoutReset = 60;
       IPPrintf(socket, "220 Connected to Plasma\r\n");
    }
+   else if(socket->userPtr == (void*)-1)
+   {
+      return;
+   }
    else if(strstr((char*)buf, "USER"))
    {
       if(strstr((char*)buf, "PlasmaSend"))
@@ -121,8 +126,6 @@ static void FtpdServer(IPSocket *socket)
    }
    else if(strstr((char*)buf, "PORT"))
    {
-      if(info == NULL)
-         return;
       sscanf((char*)buf + 5, "%d,%d,%d,%d,%d,%d", &ip0, &ip1, &ip2, &ip3, &port0, &port1);
       info->ip = (ip0 << 24) | (ip1 << 16) | (ip2 << 8) | ip3;
       info->port = (port0 << 8) | port1;
@@ -134,8 +137,6 @@ static void FtpdServer(IPSocket *socket)
       char *ptr = strstr((char*)buf, "\r");
       if(ptr)
          *ptr = 0;
-      if(info == NULL)
-         return;
       info->file = NULL;
       info->bytes = 0;
       info->done = 0;
@@ -162,6 +163,7 @@ static void FtpdServer(IPSocket *socket)
    {
       if(socket->userPtr)
          free(socket->userPtr);
+      socket->userPtr = (void*)-1;
       IPPrintf(socket, "221 Bye\r\n");
       IPClose(socket);
    }
