@@ -865,7 +865,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    }
 
    //Check if FIN flag set
-   if(packet[TCP_FLAGS] & TCP_FLAGS_FIN)
+   if(packet[TCP_FLAGS] & TCP_FLAGS_FIN && socket->ack >= seq)
    {
       notify = 1;
       socket->timeout = SOCKET_TIMEOUT;
