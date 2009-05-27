@@ -10,6 +10,7 @@ RM = del
 DWIN32 = -DWIN32
 BIN_MIPS = ..\gccmips_elf
 TOOLS_DIR = ..\tools\\
+TOOLS2_DIR = ..\tools
 APP_DIR = ..\App\\
 LINUX_PWD =
 ALIASING  =
@@ -31,6 +32,7 @@ CP = cp
 RM = rm -rf 
 DWIN32 =
 TOOLS_DIR = ../tools/
+TOOLS2_DIR = ../tools
 APP_DIR = ../App/
 LINUX_PWD = ./
 ALIASING  = -fno-strict-aliasing
@@ -52,7 +54,7 @@ CFLAGS_SW_MULT = -mno-mul -DUSE_SW_MULT
 # Use 16 fewer registers (make reg_bank.vhd smaller)
 CFLAGS_FEW_REGS = -ffixed-t0 -ffixed-t1 -ffixed-t2 -ffixed-t3 -ffixed-t4 -ffixed-t5 -ffixed-t6 -ffixed-t7 -ffixed-s0 -ffixed-s1 -ffixed-s2 -ffixed-s3 -ffixed-s4 -ffixed-s5 -ffixed-s6 -ffixed-s7 
 
-CFLAGS = -O2 -Wall -c -s -I$(TOOLS_DIR) -msoft-float -fno-builtin 
+CFLAGS = -O2 -Wall -c -s -I$(TOOLS2_DIR) -msoft-float -fno-builtin 
 #CFLAGS += $(CFLAGS_SW_MULT)
 #CFLAGS += $(CFLAGS_FEW_REGS)
 
