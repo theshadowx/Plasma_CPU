@@ -139,7 +139,7 @@ begin  --architecture
          data_r       => cpu_data_r,
          mem_pause    => cpu_pause);
 
-  opt_cache: if use_cache = '0' generate
+   opt_cache: if use_cache = '0' generate
       cache_check <= '0';
       cache_checking <= '0';
       cache_miss <= '0';
