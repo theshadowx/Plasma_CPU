@@ -522,7 +522,22 @@ OS_FILE *OS_fopen(char *name, char *mode)
       return file;
    }
    if(mode[0] == 'w')
-      OS_fdelete(name);
+   {
+      //Don't over write a directory
+      fileEntry.isDirectory = 0;
+      rc = FileFindRecursive(&dir, name, &fileEntry, filename);
+      if(dir.blockLocal)
+         free(dir.blockLocal);
+      if(rc == 0)
+      {
+         if(fileEntry.isDirectory)
+         {
+            free(file);
+            return NULL;
+         }
+         OS_fdelete(name);
+      }
+   }
    rc = FileFindRecursive(&dir, name, &fileEntry, filename);
    if(dir.blockLocal)
       free(dir.blockLocal);
