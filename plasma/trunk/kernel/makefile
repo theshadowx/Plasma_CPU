@@ -26,7 +26,7 @@ LFLAGS_X86 =
 else
 
 # Customized for Linux
-# See http://www.opencores.com/projects.cgi/web/mips/linux_tools.htm
+# See the GNU GCC tab on the Opencores Plasma page
 CC_X86 = gcc -Wall -O -g -I../tools
 CP = cp
 RM = rm -rf 
@@ -72,23 +72,8 @@ rtos:
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 
-rtos_nomult: 
-	$(AS_MIPS) -o boot.o $(TOOLS_DIR)boot.asm
-	$(AS_MIPS) -o mult_sim.o ..\tools\mult_sim.asm
-	$(GCC_MIPS) rtos.c
-	$(GCC_MIPS) libc.c
-	$(GCC_MIPS) uart.c
-	$(GCC_MIPS) rtos_test.c
-	$(GCC_MIPS) math.c $(ALIASING)
-	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
-	boot.o rtos.o libc.o uart.o rtos_test.o math.o mult_sim.o
-	@sort <test.map >test2.map
-	@$(DUMP_MIPS) --disassemble test.axf > test.lst
-	..\tools\nomult test.axf test.lst test.map
-	@$(DUMP_MIPS) --disassemble test.axf > test2.lst
-	$(CONVERT_BIN)
-
 # Build the Plasma RTOS, Plasma TCP/IP stack, and web server for the Plasma CPU
+# Use the serial port and etermip for TCP/IP packets
 rtos_tcpip:
 	$(AS_MIPS) -o boot.o $(TOOLS_DIR)boot.asm
 	$(GCC_MIPS) rtos.c
@@ -96,7 +81,7 @@ rtos_tcpip:
 	$(GCC_MIPS) uart.c
 	$(GCC_MIPS) rtos_test.c -DINCLUDE_HTML -DINCLUDE_CONSOLE
 	$(GCC_MIPS) math.c $(ALIASING)
-	$(GCC_MIPS) tcpip.c
+	$(GCC_MIPS) tcpip.c -DINCLUDE_FILESYS
 	$(GCC_MIPS) http.c -DINCLUDE_FILESYS -DEXAMPLE_HTML
 	$(GCC_MIPS) netutil.c
 	$(GCC_MIPS) filesys.c
@@ -107,6 +92,7 @@ rtos_tcpip:
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 
+# Use Ethernet for TCP/IP packets, use flash file system
 rtos_tcpip_eth:
 	$(AS_MIPS) -o boot.o $(TOOLS_DIR)boot.asm
 	$(GCC_MIPS) rtos.c
@@ -114,38 +100,15 @@ rtos_tcpip_eth:
 	$(GCC_MIPS) uart.c -DNO_PACKETS
 	$(GCC_MIPS) rtos_test.c -DINCLUDE_ETH -DINCLUDE_CONSOLE
 	$(GCC_MIPS) math.c $(ALIASING)
-	$(GCC_MIPS) tcpip.c
+	$(GCC_MIPS) tcpip.c -DINCLUDE_FILESYS
 	$(GCC_MIPS) http.c -DINCLUDE_FILESYS -DEXAMPLE_HTML
-	$(GCC_MIPS) netutil.c
-	$(GCC_MIPS) filesys.c
+	$(GCC_MIPS) netutil.c -DINCLUDE_FLASH -DDLL_SETUP
+	$(GCC_MIPS) filesys.c -DINCLUDE_FLASH
 	$(GCC_MIPS) ethernet.c
+	$(GCC_MIPS) flash.c
 	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
 	boot.o rtos.o libc.o uart.o rtos_test.o math.o tcpip.o \
-	http.o netutil.o filesys.o ethernet.o
-	$(CONVERT_BIN)
-	@sort <test.map >test2.map
-	@$(DUMP_MIPS) --disassemble test.axf > test.lst
-
-# Build full test application
-rtosuart: 
-	$(AS_MIPS) -o boot.o $(TOOLS_DIR)boot.asm
-	$(GCC_MIPS) rtos.c
-	$(GCC_MIPS) libc.c
-	$(GCC_MIPS) uart.c
-	$(GCC_MIPS) rtos_test.c -DINCLUDE_HTML -DINCLUDE_CONSOLE
-	$(GCC_MIPS) math.c $(ALIASING)
-	$(GCC_MIPS) tcpip.c
-	$(GCC_MIPS) http.c -DINCLUDE_FILESYS
-	$(GCC_MIPS) netutil.c
-	$(GCC_MIPS) filesys.c
-	$(GCC_MIPS) -I. $(APP_DIR)html.c -DMainThread=HtmlThread
-	$(GCC_MIPS) -I. $(APP_DIR)image.c
-	$(GCC_MIPS) -I. $(APP_DIR)tictac.c
-	$(GCC_MIPS) -I. $(APP_DIR)tic3d.c
-	$(GCC_MIPS) -I. $(APP_DIR)connect4.c
-	$(LD_MIPS) -Ttext 0x10000000 -eentry -Map test.map -s -N -o test.axf \
-	boot.o rtos.o libc.o uart.o rtos_test.o math.o tcpip.o \
-	http.o netutil.o filesys.o html.o image.o tictac.o tic3d.o connect4.o 
+	http.o netutil.o filesys.o ethernet.o flash.o
 	$(CONVERT_BIN)
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
@@ -158,7 +121,7 @@ rtosfull:
 	$(GCC_MIPS) uart.c -DNO_PACKETS
 	$(GCC_MIPS) rtos_test.c -DINCLUDE_ETH -DINCLUDE_CONSOLE
 	$(GCC_MIPS) math.c $(ALIASING)
-	$(GCC_MIPS) tcpip.c
+	$(GCC_MIPS) tcpip.c -DINCLUDE_FILESYS
 	$(GCC_MIPS) http.c -DINCLUDE_FILESYS
 	$(GCC_MIPS) netutil.c -DINCLUDE_FLASH -DDLL_SETUP
 	$(GCC_MIPS) filesys.c -DINCLUDE_FLASH
@@ -177,10 +140,19 @@ rtosfull:
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 
+# Create a separate Dynamically Linked Library executable
+# ftp test.bin to /flash/web/dlltest
+# telnet to board and execute "dlltest"
+dlltest:
+	$(GCC_MIPS) -G0 dlltest.c
+	$(LD_MIPS) -Ttext 0x10100000 -s -N -o test.axf dlltest.o
+	$(CONVERT_BIN)
+	@$(DUMP_MIPS) --disassemble test.axf > test.lst
+
 # Test the RTOS running on a PC
 testrtos:
 	@$(CC_X86) $(CFLAGS_X86) rtos.c
-	@$(CC_X86) $(CFLAGS_X86) libc.c -fno-builtin
+	@$(CC_X86) $(CFLAGS_X86) libc.c 
 	@$(CC_X86) $(CFLAGS_X86) uart.c
 	@$(CC_X86) $(CFLAGS_X86) rtos_test.c
 	@$(CC_X86) $(CFLAGS_X86) math.c $(ALIASING)
@@ -193,11 +165,11 @@ testip:
 	@$(CC_X86) $(CFLAGS_X86) http.c /DEXAMPLE_HTML
 	@$(CC_X86) $(CFLAGS_X86) netutil.c
 	@$(CC_X86) $(CFLAGS_X86) filesys.c
-	@$(CC_X86) $(CFLAGS_X86) libc.c /I$(TOOLS_DIR) -fno-builtin
+	@$(CC_X86) $(CFLAGS_X86) libc.c /I$(TOOLS_DIR) 
 	@$(CC_X86) $(CFLAGS_X86) /DSIMULATE_PLASMA $(TOOLS_DIR)etermip.c
-	@$(CC_X86) $(CFLAGS_X86)  os_stubs.c
+	@$(CC_X86) $(CFLAGS_X86) os_stubs.c
 	@$(CC_X86) -o testip.exe etermip.obj $(TOOLS_DIR)wpcap.lib \
-	tcpip.obj http.obj netutil.obj filesys.obj libc.c os_stubs.c
+	tcpip.obj http.obj netutil.obj filesys.obj libc.obj os_stubs.obj
 	@echo Try http://plasmb/.  Try telnet plasmb.  Try ftp plasmb.
 	$(LINUX_PWD)testip.exe
 

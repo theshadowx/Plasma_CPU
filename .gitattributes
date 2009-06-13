@@ -110,6 +110,8 @@ plasma/tags/arelease/vhdl/ram.vhd -text
 plasma/tags/arelease/vhdl/reg_bank.vhd -text
 plasma/tags/arelease/vhdl/shifter.vhd -text
 plasma/tags/arelease/vhdl/tbench.vhd -text
+plasma/trunk/kernel/dll.h -text
+plasma/trunk/kernel/dlltest.c -text
 plasma/trunk/kernel/ethernet.c -text
 plasma/trunk/kernel/filesys.c -text
 plasma/trunk/kernel/flash.c -text
