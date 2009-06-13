@@ -429,170 +429,194 @@ static void TelnetServer(IPSocket *socket)
 {
    uint8 buf[COMMAND_BUFFER_SIZE+4];
    char bufOut[32];
-   int bytes, i, j, length, found;
+   int bytes, i, j, k, length, found;
    char *ptr, *command = socket->userPtr;
    char *argv[10];
 
    if(socket->state > IP_TCP)
       return;
-   bytes = IPRead(socket, buf, sizeof(buf)-1);
-   if(command == NULL)
+   for(;;)
    {
-      socket->userPtr = command = (char*)malloc(COMMAND_BUFFER_SIZE);
+      bytes = IPRead(socket, buf, sizeof(buf)-1);
       if(command == NULL)
       {
-         IPClose(socket);
+         socket->userPtr = command = (char*)malloc(COMMAND_BUFFER_SIZE);
+         if(command == NULL)
+         {
+            IPClose(socket);
+            return;
+         }
+         socket->timeoutReset = 300;
+         buf[0] = 255; //IAC
+         buf[1] = 251; //WILL
+         buf[2] = 3;   //suppress go ahead
+         buf[3] = 255; //IAC
+         buf[4] = 251; //WILL
+         buf[5] = 1;   //echo
+         strcpy((char*)buf+6, "Welcome to Plasma.\r\n-> ");
+         IPWrite(socket, buf, 6+23);
+         IPWriteFlush(socket);
+         command[0] = 0;
          return;
       }
-      socket->timeoutReset = 300;
-      buf[0] = 255; //IAC
-      buf[1] = 251; //WILL
-      buf[2] = 3;   //suppress go ahead
-      buf[3] = 255; //IAC
-      buf[4] = 251; //WILL
-      buf[5] = 1;   //echo
-      strcpy((char*)buf+6, "Welcome to Plasma.\r\n-> ");
-      IPWrite(socket, buf, 6+23);
-      IPWriteFlush(socket);
-      command[0] = 0;
-      return;
-   }
-   socket->dontFlush = 0;
-   buf[bytes] = 0;
-   length = (int)strlen(command);
-   for(j = 0; j < bytes; ++j)
-   {
-      if(buf[j] == 255)
+      if(bytes == 0)
          return;
-      if(buf[j] == 8 || (buf[j] == 27 && buf[j+2] == 'D'))
+      socket->dontFlush = 0;
+      buf[bytes] = 0;
+      length = (int)strlen(command);
+      for(j = 0; j < bytes; ++j)
       {
-         if(buf[j] == 27)
-            j += 2;
-         if(length)
+         if(buf[j] == 255)
+            return;
+         if(buf[j] == 8 || (buf[j] == 27 && buf[j+2] == 'D'))
          {
-            // Backspace
-            command[--length] = 0;
+            if(buf[j] == 27)
+               j += 2;
+            if(length)
+            {
+               // Backspace
+               command[--length] = 0;
+               bufOut[0] = 8;
+               bufOut[1] = ' ';
+               bufOut[2] = 8;
+               IPWrite(socket, (uint8*)bufOut, 3);
+            }
+         }
+         else if(buf[j] == 27)
+         {
+            // Command History
+            if(buf[j+2] == 'A')
+            {
+               if(++CommandIndex > COMMAND_BUFFER_COUNT)
+                  CommandIndex = COMMAND_BUFFER_COUNT;
+            }
+            else if(buf[j+2] == 'B')
+            {
+               if(--CommandIndex < 0)
+                  CommandIndex = 0;
+            }
+            else 
+               return;
             bufOut[0] = 8;
             bufOut[1] = ' ';
             bufOut[2] = 8;
-            IPWrite(socket, (uint8*)bufOut, 3);
+            for(i = 0; i < length; ++i)
+               IPWrite(socket, (uint8*)bufOut, 3);
+            command[0] = 0;
+            if(CommandIndex && CommandPtr[CommandIndex-1])
+               strncat(command, CommandPtr[CommandIndex-1], COMMAND_BUFFER_SIZE-1);
+            length = (int)strlen(command);
+            IPWrite(socket, (uint8*)command, length);
+            j += 2;
          }
-      }
-      else if(buf[j] == 27)
-      {
-         // Command History
-         if(buf[j+2] == 'A')
+         else
          {
-            if(++CommandIndex > COMMAND_BUFFER_COUNT)
-               CommandIndex = COMMAND_BUFFER_COUNT;
-         }
-         else if(buf[j+2] == 'B')
-         {
-            if(--CommandIndex < 0)
-               CommandIndex = 0;
-         }
-         else 
-            return;
-         bufOut[0] = 8;
-         bufOut[1] = ' ';
-         bufOut[2] = 8;
-         for(i = 0; i < length; ++i)
-            IPWrite(socket, (uint8*)bufOut, 3);
-         command[0] = 0;
-         if(CommandIndex && CommandPtr[CommandIndex-1])
-            strncat(command, CommandPtr[CommandIndex-1], COMMAND_BUFFER_SIZE-1);
-         length = (int)strlen(command);
-         IPWrite(socket, (uint8*)command, length);
-         j += 2;
-      }
-      else
-      {
-         if(buf[j] == 0)
-            buf[j] = '\n';  //Linux support
-         if(length < COMMAND_BUFFER_SIZE-4 || (length < 
-            COMMAND_BUFFER_SIZE-2 && (buf[j] == '\r' || buf[j] == '\n')))
-         {
-            IPWrite(socket, buf+j, 1);
-            command[length] = buf[j];
-            command[++length] = 0;
-         }
-      }
-      ptr = strstr(command, "\r\n");
-      if(ptr)
-      {
-         // Save command in CommandHistory
-         ptr[0] = 0;
-         length = (int)strlen(command);
-         if(length == 0)
-         {
-            IPPrintf(socket, "-> ");
-            continue;
-         }
-         if(length < COMMAND_BUFFER_SIZE)
-         {
-            memmove(CommandHistory + length + 1, CommandHistory,
-               sizeof(CommandHistory) - length - 1);
-            strcpy(CommandHistory, command);
-            CommandHistory[sizeof(CommandHistory)-1] = 0;
-            for(i = COMMAND_BUFFER_COUNT-2; i >= 0; --i)
+            if(buf[j] == 0)
+               buf[j] = '\n';  //Linux support
+            if(length < COMMAND_BUFFER_SIZE-4 || (length < 
+               COMMAND_BUFFER_SIZE-2 && (buf[j] == '\r' || buf[j] == '\n')))
             {
-               if(CommandPtr[i] == NULL || CommandPtr[i] + length + 1 >= 
-                  CommandHistory + sizeof(CommandHistory))
-                  CommandPtr[i+1] = NULL;
-               else
-                  CommandPtr[i+1] = CommandPtr[i] + length + 1;
-            }
-            CommandPtr[0] = CommandHistory;
-         }
-
-         //Start command
-         for(i = 0; i < 10; ++i)
-            argv[i] = "";
-         i = 0;
-         argv[i++] = command;
-         for(ptr = command; *ptr && i < 10; ++ptr)
-         {
-            if(*ptr == ' ')
-            {
-               *ptr = 0;
-               argv[i++] = ptr + 1;
+               IPWrite(socket, buf+j, 1);
+               command[length] = buf[j];
+               command[++length] = 0;
             }
          }
-         if(argv[0][0] == 0)
+         ptr = strstr(command, "\r\n");
+         if(ptr)
          {
-            IPPrintf(socket, "-> ");
-            continue;
-         }
-         found = 0;
-         for(i = 0; TelnetFuncList[i].name; ++i)
-         {
-            if(strcmp(command, TelnetFuncList[i].name) == 0 &&
-               TelnetFuncList[i].func)
+            // Save command in CommandHistory
+            ptr[0] = 0;
+            length = (int)strlen(command);
+            if(length == 0)
             {
-               found = 1;
-               TelnetFuncList[i].func(socket, argv);
-               break;
+               IPPrintf(socket, "-> ");
+               continue;
             }
-         }
+            if(length < COMMAND_BUFFER_SIZE)
+            {
+               memmove(CommandHistory + length + 1, CommandHistory,
+                  sizeof(CommandHistory) - length - 1);
+               strcpy(CommandHistory, command);
+               CommandHistory[sizeof(CommandHistory)-1] = 0;
+               for(i = COMMAND_BUFFER_COUNT-2; i >= 0; --i)
+               {
+                  if(CommandPtr[i] == NULL || CommandPtr[i] + length + 1 >= 
+                     CommandHistory + sizeof(CommandHistory))
+                     CommandPtr[i+1] = NULL;
+                  else
+                     CommandPtr[i+1] = CommandPtr[i] + length + 1;
+               }
+               CommandPtr[0] = CommandHistory;
+            }
+   
+            //Start command
+            for(i = 0; i < 10; ++i)
+               argv[i] = "";
+            i = 0;
+            argv[i++] = command;
+            for(ptr = command; *ptr && i < 10; ++ptr)
+            {
+               if(*ptr == ' ')
+               {
+                  *ptr = 0;
+                  argv[i++] = ptr + 1;
+               }
+            }
+            if(argv[0][0] == 0)
+            {
+               IPPrintf(socket, "-> ");
+               continue;
+            }
+            found = 0;
+            for(i = 0; TelnetFuncList[i].name; ++i)
+            {
+               if(strcmp(command, TelnetFuncList[i].name) == 0 &&
+                  TelnetFuncList[i].func)
+               {
+                  found = 1;
+                  for(k = 1; k < 10; ++k)
+                  {
+                     if(argv[k][0] == '>' && argv[k][1]) //stdout to file?
+                     {
+                        socket->fileOut = fopen(&argv[k][1], "a");
+                        argv[k] = "";
+                     }
+                     if(argv[k][0] == '<' && argv[k][1]) //stdin from file?
+                     {
+                        socket->fileIn = fopen(&argv[k][1], "r");
+                        argv[k] = "";
+                     }
+                  }
+                  TelnetFuncList[i].func(socket, argv);
+                  if(socket->fileOut)
+                  {
+                     fwrite("\r\n", 1, 2, socket->fileOut);
+                     fclose(socket->fileOut);
+                  }
+                  socket->fileOut = NULL;
+                  break;
+               }
+            }
 #ifdef DLL_SETUP
-         if(found == 0)
-         {
-            strcpy((char*)buf, "/flash/bin/");
-            strcat((char*)buf, argv[0]);
-            argv[0] = (char*)buf;
-            ConsoleRun(socket, argv);
-         }
+            if(found == 0)
+            {
+               strcpy((char*)buf, "/flash/bin/");
+               strcat((char*)buf, argv[0]);
+               argv[0] = (char*)buf;
+               ConsoleRun(socket, argv);
+            }
 #endif
-         if(socket->state > IP_TCP)
-            return;
-         command[0] = 0;
-         length = 0;
-         CommandIndex = 0;
-         if(socket->dontFlush == 0)
-            IPPrintf(socket, "\r\n-> ");
-      } //command entered
-   } //bytes
-   IPWriteFlush(socket);
+            if(socket->state > IP_TCP)
+               return;
+            command[0] = 0;
+            length = 0;
+            CommandIndex = 0;
+            if(socket->dontFlush == 0)
+               IPPrintf(socket, "\r\n-> ");
+         } //command entered
+      } //bytes
+      IPWriteFlush(socket);
+   } 
 }
 
 
@@ -729,7 +753,7 @@ static void ConsoleLs(IPSocket *socket, char *argv[])
          IPPrintf(socket, "\n");
          width = bytes;
       }
-      IPWrite(socket, (uint8*)buf2, bytes);
+      IPPrintf(socket, "%s", buf2);
    }
    fclose(file);
 }
@@ -892,6 +916,99 @@ static void ConsoleMkfile(IPSocket *socket, char *argv[])
 }
 
 
+static void ConsoleUptime(IPSocket *socket, char *argv[])
+{
+   int days, hours, minutes, seconds;
+   (void)argv;
+   seconds = OS_ThreadTime() / 100;
+   minutes = seconds / 60 % 60;
+   hours = seconds / 3600 % 24;
+   days = seconds / 3600 / 24;
+   seconds %= 60;
+   IPPrintf(socket, "%d days %2d:%2d:%2d\n", days, hours, minutes, seconds);
+}
+
+
+static void ConsoleDump(IPSocket *socket, char *argv[])
+{
+   FILE *fileIn;
+   uint8 buf[16];
+   int bytes, i, j;
+
+   fileIn = fopen(argv[1], "r");
+   if(fileIn == NULL)
+      return;
+   for(j = 0; j < 1024*1024*16; j += 16)
+   {
+      bytes = fread(buf, 1, 16, fileIn);
+      if(bytes == 0)
+         break;
+      IPPrintf(socket, "%8x ", j);
+      for(i = 0; i < bytes; ++i)
+         IPPrintf(socket, "%2x ", buf[i]);
+      for( ; i < 16; ++i)
+         IPPrintf(socket, "   ");
+      for(i = 0; i < bytes; ++i)
+      {
+         if(isprint(buf[i]))
+            IPPrintf(socket, "%c", buf[i]);
+         else
+            IPPrintf(socket, ".");
+      }
+      IPPrintf(socket, "\n");
+   }
+   fclose(fileIn);
+}
+
+
+static void ConsoleGrep(IPSocket *socket, char *argv[])
+{
+   FILE *fileIn;
+   char buf[200];
+   int bytes;
+   char *ptr, *ptrEnd;
+
+   if(argv[1][0] == 0 || argv[2][0] == 0)
+   {
+      IPPrintf(socket, "Usage: grep pattern file\n");
+      return;
+   }
+   fileIn = fopen(argv[2], "r");
+   if(fileIn == NULL)
+      return;
+   bytes = 0;
+   for(;;)
+   {
+      bytes += fread(buf + bytes, 1, sizeof(buf) - bytes - 1, fileIn);
+      if(bytes == 0)
+         break;
+      buf[bytes] = 0;
+      ptrEnd = strstr(buf, "\r");
+      if(ptrEnd == NULL)
+         ptrEnd = strstr(buf, "\n");
+      if(ptrEnd)
+      {
+         *ptrEnd = 0;
+         if(*++ptrEnd == '\n')
+            ++ptrEnd;
+      }
+      ptr = strstr(buf, argv[1]);
+      if(ptr)
+         IPPrintf(socket, "%s\n", buf);
+      if(ptrEnd)
+      {
+         bytes = strlen(ptrEnd);
+         memcpy(buf, ptrEnd, bytes);
+      }
+      else
+      {
+         bytes = 0;
+      }
+   }
+   fclose(fileIn);
+}
+
+
 #ifdef DLL_SETUP
 #include "dll.h"
 
@@ -901,14 +1018,10 @@ static void ConsoleRun(IPSocket *socket, char *argv[])
    int bytes, i;
    uint8 code[128];
    DllFunc funcPtr;
-   DllInfo info;
-   int *bss;
    char *command, *ptr;
 
    if(strcmp(argv[0], "run") == 0)
       ++argv;
-   info.socket = socket;
-   info.dllFuncList = DllFuncList;
    file = fopen(argv[0], "r");
    if(file == NULL)
    {
@@ -916,17 +1029,23 @@ static void ConsoleRun(IPSocket *socket, char *argv[])
       return;
    }
 
-   bytes = fread(code, 1, sizeof(code), file);
-   funcPtr = (DllFunc)code;
-   funcPtr(&info);     //call entry() to fill in info
+   bytes = fread(code, 1, sizeof(code), file);  //load first 128 bytes
+   if(code[0] >= ' ')
+   {
+      socket->fileIn = file;       //script file
+      fseek(file, 0, 0);
+      return;
+   }
 
-   memcpy(info.entry, code, bytes);
-   bytes = fread(info.entry + bytes, 1, 1024*1024*8, file) + bytes;
+   funcPtr = (DllFunc)code;
+   ptr = funcPtr(NULL);            //determine load address
+
+   memcpy(ptr, code, bytes);       //copy to correct address
+   bytes += fread(ptr + bytes, 1, 1024*1024*8, file);
    fclose(file);
-   printf("address=0x%x bytes=%d\n", (int)info.entry, bytes);
-   for(bss = info.bssStart; bss < info.bssEnd; ++bss)
-      *bss = 0;
-   *info.pDllF = DllFuncList;
+   printf("address=0x%x bytes=%d\n", (int)ptr, bytes);
+   funcPtr = (DllFunc)ptr;
+   funcPtr = (DllFunc)funcPtr(DllFuncList);  //initialize DLL, find Start()
 
    //Register new command
    command = argv[0];
@@ -944,13 +1063,13 @@ static void ConsoleRun(IPSocket *socket, char *argv[])
       {
          TelnetFuncList[i].name = (char*)malloc(40);
          strcpy(TelnetFuncList[i].name, command);
-         TelnetFuncList[i].func = (ConsoleFunc)info.startPtr;
+         TelnetFuncList[i].func = (ConsoleFunc)funcPtr;
          break;
       }
    }
 
    socket->userFunc = socket->funcPtr;
-   info.startPtr(socket, argv);
+   funcPtr(socket, argv);
 }
 
 
@@ -994,11 +1113,13 @@ extern void EditFile(IPSocket *socket, char *argv[]);
 static TelnetFunc_t MyFuncs[] = { 
    {"cat", ConsoleCat},
    {"cp", ConsoleCp},
+   {"dump", ConsoleDump},
    {"exit", ConsoleExit},
 #ifdef INCLUDE_FLASH
    {"flashErase", ConsoleFlashErase},
 #endif
    {"ftp", ConsoleFtp},
+   {"grep", ConsoleGrep},
    {"help", ConsoleHelp},
    {"ls", ConsoleLs},
    {"math", ConsoleMath},
@@ -1007,6 +1128,7 @@ static TelnetFunc_t MyFuncs[] = {
    {"ping", ConsolePing},
    {"rm", ConsoleRm},
    {"tftp", ConsoleTftp},
+   {"uptime", ConsoleUptime},
 #ifdef DLL_SETUP
    {"run", ConsoleRun},
 #endif
