@@ -69,6 +69,8 @@ typedef struct IPSocket {
    int readOffset;
    struct IPFrame *frameSend;
    int sendOffset;
+   void *fileOut;
+   void *fileIn;
    IPFuncPtr funcPtr;
    IPFuncPtr userFunc;
    void *userPtr;

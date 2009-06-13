@@ -1294,6 +1294,11 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
    if(socket->timeout)
       socket->timeout = socket->timeoutReset;
 
+#ifdef INCLUDE_FILESYS
+   if(socket->fileOut)   //override stdout
+      return fwrite((char*)buf, 1, length, socket->fileOut);
+#endif
+ 
    //printf("IPWrite(0x%x, %d)", Socket, Length);
    self = OS_ThreadSelf();
    while(length)
@@ -1371,6 +1376,21 @@ uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length)
 {
    IPFrame *frame, *frame2;
    int count=0, bytes, offset;
+
+#ifdef INCLUDE_FILESYS
+   if(socket->fileIn)   //override stdin
+   {
+      bytes = fread(buf, 1, 1, socket->fileIn);
+      if(bytes == 0)
+      {
+         buf[0] = 0;
+         fclose(socket->fileIn);
+         socket->fileIn = NULL;
+         bytes = 1;
+      }
+      return bytes;
+   }
+#endif
 
    if(socket->state == IP_UDP)
       offset = UDP_DATA;
