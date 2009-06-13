@@ -553,6 +553,8 @@ OS_FILE *OS_fopen(char *name, char *mode)
    file->fullname[0] = 0;
    strncat(file->fullname, name, FULL_NAME_SIZE);
    OS_MutexPost(mutexFilesys);
+   if(mode[0] == 'a')
+      OS_fseek(file, 0, 2);  //goto end of file
    return file;
 }
 
