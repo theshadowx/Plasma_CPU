@@ -71,6 +71,8 @@ ram_image.exe: ram_image.c
 
 # Terminal program that will download a new image and supports Ethernet
 # traffic over UART.  Get wpcap.lib from http://www.winpcap.org/.
+# Requires Windows OS
+# For Linux, use any serial port program at 57600 baud 8-bits;1-stop bit
 etermip: etermip.c
 	-@$(CC_X86) -o etermip.exe etermip.c wpcap.lib
 	@echo Get wpcap.lib from http://www.winpcap.org/
