@@ -159,7 +159,7 @@ testrtos:
 	@$(CC_X86) $(LFLAGS_X86) -o testrtos.exe rtos.$(OBJ) libc.$(OBJ) uart.$(OBJ) rtos_test.$(OBJ) math.$(OBJ) 
 	$(LINUX_PWD)testrtos.exe
 
-# Test the TCP/IP protocol stack running on a PC
+# Test the TCP/IP protocol stack running on a PC (requires Windows)
 testip:
 	@$(CC_X86) $(CFLAGS_X86) tcpip.c
 	@$(CC_X86) $(CFLAGS_X86) http.c /DEXAMPLE_HTML
