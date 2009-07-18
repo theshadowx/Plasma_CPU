@@ -14,6 +14,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use work.mlite_pack.all;
+--library UNISIM;               --May need to uncomment for ModelSim
+--use UNISIM.vcomponents.all;   --May need to uncomment for ModelSim
 
 entity reg_bank is
    generic(memory_type : string := "XILINX_16X");
