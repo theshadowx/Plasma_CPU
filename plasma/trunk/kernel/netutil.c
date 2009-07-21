@@ -920,7 +920,8 @@ static void ConsoleUptime(IPSocket *socket, char *argv[])
 {
    int days, hours, minutes, seconds;
    (void)argv;
-   seconds = OS_ThreadTime() / 100;
+   //ticks per sec = 25E6/2^18 = 95.36743 -> 10.48576 ms/tick
+   seconds = OS_ThreadTime() / 95;
    minutes = seconds / 60 % 60;
    hours = seconds / 3600 % 24;
    days = seconds / 3600 / 24;
