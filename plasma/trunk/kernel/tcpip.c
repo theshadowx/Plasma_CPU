@@ -959,11 +959,13 @@ int IPProcessEthernetPacket(IPFrame *frameIn, int length)
       memcmp(packet+IP_DEST, ipAddressPlasma, 4))
       return 0;
    rc = EthernetVerifyChecksums(packet, frameIn->length);
-   //if(rc)
-   //{
-   //   printf("C ");
-   //   return;
-   //}
+#ifndef WIN32
+   if(rc && FrameSendFunc)
+   {
+      printf("C ");
+      return 0;
+   }
+#endif
 
    //PING request?
    if(packet[IP_PROTOCOL] == 1)
