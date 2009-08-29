@@ -1055,14 +1055,14 @@ static void IPMainThread(void *arg)
 
    for(;;)
    {
-      Led(0);
+      Led(7, 0);
       rc = OS_MQueueGet(IPMQueue, message, 10);
       if(rc == 0)
       {
          frame = (IPFrame*)message[1];
          if(message[0] == 0)       //frame received
          {
-            Led(1);
+            Led(7, 1);
             frame->length = (uint16)message[2];
             rc = IPProcessEthernetPacket(frame, frame->length);
             if(rc == 0)
@@ -1070,7 +1070,7 @@ static void IPMainThread(void *arg)
          }
          else if(message[0] == 1)  //frame sent
          {
-            Led(2);
+            Led(7, 2);
             assert(frame == frameOut);
             IPFrameReschedule(frame);
             frameOut = NULL;
@@ -1089,7 +1089,7 @@ static void IPMainThread(void *arg)
          OS_MutexPost(IPMutex);
          if(frameOut)
          {
-            Led(4);
+            Led(7, 4);
             UartPacketSend(frameOut->packet, frameOut->length);
          }
       }

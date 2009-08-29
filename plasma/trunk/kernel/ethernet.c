@@ -213,7 +213,7 @@ void EthernetTransmit(unsigned char *buffer, int length)
    //if(i > 100)
    //   printf("wait=%d ", i);
 
-   Led(2);
+   Led(2, 2);
    while(length < 60 || (length & 3) != 0)
       buffer[length++] = 0;
 
@@ -243,7 +243,7 @@ void EthernetTransmit(unsigned char *buffer, int length)
    //Start transfer
    length = (length + 12 + 4) >> 2;
    MemoryWrite(ETHERNET_REG, length);
-   Led(0);
+   Led(2, 0);
 
    OS_SemaphorePost(SemEthTransmit);
 }
@@ -275,9 +275,9 @@ void EthernetThread(void *arg)
          length = EthernetReceive(ethFrame->packet, PACKET_SIZE);
          if(length == 0)
             break;
-         Led(1);
+         Led(1, 1);
          rc = IPProcessEthernetPacket(ethFrame, length);
-         Led(0);
+         Led(1, 0);
          if(rc)
             ethFrame = NULL;
       }

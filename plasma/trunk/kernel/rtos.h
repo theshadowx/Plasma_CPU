@@ -304,7 +304,7 @@ int getch(void);
 int kbhit(void);
 void LogWrite(int a);
 void LogDump(void);
-void Led(int value);
+void Led(int mask, int value);
 
 /***************** Keyboard **************/
 #define KEYBOARD_RAW     0x100

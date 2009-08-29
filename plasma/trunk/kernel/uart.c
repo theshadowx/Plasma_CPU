@@ -488,11 +488,11 @@ void UartPacketSend(uint8 *data, int bytes)
 #endif
 
 
-void Led(int value)
+void Led(int mask, int value)
 {
-   //value |= 0xffffff00;
-   MemoryWrite(GPIO0_CLEAR, (~value) & 0xff); //clear
-   MemoryWrite(GPIO0_OUT, value);  //Change LEDs
+   mask &= 0xff;
+   MemoryWrite(GPIO0_CLEAR, mask);       //clear
+   MemoryWrite(GPIO0_OUT, value & mask); //set LEDs
 }
 
 
