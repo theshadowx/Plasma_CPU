@@ -48,8 +48,6 @@ end; --entity eth_dma
 
 architecture logic of eth_dma is
    signal rec_clk    : std_logic_vector(1 downto 0);  --receive
-   signal rec_valid  : std_logic;
-   signal rec_latch  : std_logic_vector(3 downto 0);
    signal rec_store  : std_logic_vector(31 downto 0); --to DDR
    signal rec_data   : std_logic_vector(27 downto 0);
    signal rec_cnt    : std_logic_vector(2 downto 0);  --nibbles
@@ -71,16 +69,11 @@ begin  --architecture
    dma_proc: process(clk, reset, enable_eth, select_eth, 
          data_read, pause_in, mem_address, mem_byte_we, data_w, 
          E_RX_CLK, E_RX_DV, E_RXD, E_TX_CLK,
-         rec_clk, rec_valid, rec_latch, rec_store, rec_data, 
+         rec_clk, rec_store, rec_data, 
          rec_cnt, rec_words, rec_dma, rec_done,
          send_clk, send_read, send_data, send_cnt, send_words, 
          send_level, send_dma, send_enable)
    begin
-
-      if rising_edge(E_RX_CLK) then
-         rec_valid <= E_RX_DV;
-         rec_latch <= E_RXD;
-      end if;
 
       if reset = '1' then
          rec_clk <= "00";
@@ -99,12 +92,12 @@ begin  --architecture
          --Receive nibble on low->high E_RX_CLK.  Send to DDR every 32 bits.
          rec_clk <= rec_clk(0) & E_RX_CLK;
          if rec_clk = "01" and enable_eth = '1' then
-            if rec_valid = '1' or rec_cnt /= "000" then
+            if E_RX_DV = '1' or rec_cnt /= "000" then
                if rec_cnt = "111" then
-                  rec_store <= rec_data & rec_latch;
+                  rec_store <= rec_data & E_RXD;
                   rec_dma(0) <= '1';           --request DMA
                end if;
-               rec_data <= rec_data(23 downto 0) & rec_latch;
+               rec_data <= rec_data(23 downto 0) & E_RXD;
                rec_cnt <= rec_cnt + 1;
             end if;
          end if;
@@ -143,7 +136,7 @@ begin  --architecture
             if rec_dma(1) = '1' then
                rec_dma <= "00";               --DMA done
                rec_words <= rec_words + 1;
-               if rec_valid = '0' then
+               if E_RX_DV = '0' then
                   rec_done <= '1';
                end if;
             elsif send_dma(1) = '1' then
