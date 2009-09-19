@@ -298,7 +298,7 @@ begin
       alu_function := ALU_LESS_THAN_SIGNED;
 
    when "001011" =>   --SLTIU  u[rt]=u[rs]<(unsigned long)(short)imm;
-      b_source := B_FROM_IMM;
+      b_source := B_FROM_SIGNED_IMM;
       c_source := C_FROM_ALU;
       rd := rt;
       alu_function := ALU_LESS_THAN;
