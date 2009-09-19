@@ -146,6 +146,10 @@ plasma/trunk/tools/ram_image.c -text
 plasma/trunk/tools/test.c -text
 plasma/trunk/tools/tracehex.c -text
 plasma/trunk/vhdl/alu.vhd -text
+plasma/trunk/vhdl/build_dir/ISE_scripts/loadprom.cmds -text
+plasma/trunk/vhdl/build_dir/ISE_scripts/main.scrs -text
+plasma/trunk/vhdl/build_dir/ISE_scripts/makeprom.cmds -text
+plasma/trunk/vhdl/build_dir/Makefile -text
 plasma/trunk/vhdl/bus_mux.vhd -text
 plasma/trunk/vhdl/cache.vhd -text
 plasma/trunk/vhdl/code.txt -text
