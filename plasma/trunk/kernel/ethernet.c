@@ -283,7 +283,7 @@ void EthernetThread(void *arg)
       }
 
       ticks = OS_ThreadTime();
-      if(ticks - ticksLast > 50)
+      if(ticks - ticksLast >= 50)
       {
          IPTick();
          ticksLast = ticks;
