@@ -262,6 +262,11 @@ static void FrameInsert(IPFrame **head, IPFrame **tail, IPFrame *frame)
 static void FrameRemove(IPFrame **head, IPFrame **tail, IPFrame *frame)
 {
    assert(frame->state == 2);
+   if(frame->state != 2)
+   {
+      printf("frame->state=%d\n", frame->state);
+      return;
+   }
    frame->state = 1;
    if(frame->prev)
       frame->prev->next = frame->next;
@@ -1293,6 +1298,9 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
    int offset;
    OS_Thread_t *self;
 
+   if(socket->state > IP_TCP)
+      return 0;
+
    if(socket->timeout)
       socket->timeout = socket->timeoutReset;
 
@@ -1440,13 +1448,20 @@ static void IPClose2(IPSocket *socket)
 {
    IPFrame *frame, *framePrev;
 
+   //printf("IPClose2(%x) ", (int)socket);
+
    OS_MutexPend(IPMutex);
 
-   //Mark packets as don't retransmit
-   for(frame = FrameSendHead; frame; frame = frame->next)
+   //Remove pending packets
+   for(frame = FrameSendHead; frame; )
    {
-      if(frame->socket == socket)
-         frame->socket = NULL;
+      framePrev = frame;
+      frame = frame->next;
+      if(framePrev->socket == socket)
+      {
+         FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
+         FrameFree(framePrev);
+      }
    }
 
    //Remove packets from retransmision list
@@ -1470,24 +1485,10 @@ static void IPClose2(IPSocket *socket)
       FrameFree(framePrev);
    }
 
-   //Remove socket
-   if(socket->state == IP_CLOSED || socket->state <= IP_UDP)
-   {
-      if(socket->prev == NULL)
-         SocketHead = socket->next;
-      else
-         socket->prev->next = socket->next;
-      if(socket->next)
-         socket->next->prev = socket->prev;
-      free(socket);
-   }
-   else
-   {
-      //Give application 10 seconds to stop using socket
-      if(socket->state > IP_UDP)
-         socket->state = IP_CLOSED;
-      socket->timeout = 10;
-   }
+   //Give application 30 seconds to stop using socket
+   socket->timeout = 30;
+   socket->state = IP_CLOSED;
+
    OS_MutexPost(IPMutex);
 }
 
@@ -1495,6 +1496,8 @@ static void IPClose2(IPSocket *socket)
 void IPClose(IPSocket *socket)
 {
    IPFrame *frameOut;
+
+   //printf("IPClose(%x) ", (int)socket);
 
    IPWriteFlush(socket);
    if(socket->state <= IP_UDP)
@@ -1511,7 +1514,10 @@ void IPClose(IPSocket *socket)
    if(socket->state == IP_FIN_CLIENT)
       IPClose2(socket);
    else
+   {
+      socket->timeout = 20;
       socket->state = IP_FIN_SERVER;
+   }
 }
 
 
@@ -1572,9 +1578,17 @@ void IPTick(void)
       if(--frame2->timeout <= 0)
       {
          if(IPVerbose)
-            printf("r");
+            printf("r" /*"(%x,%d,%d,%d)"*/, (int)frame2->socket, frame2->retryCnt, 
+               frame2->length - TCP_DATA, FrameFreeCount);
          FrameRemove(&FrameResendHead, &FrameResendTail, frame2);
-         IPSendFrame(frame2);
+         if(frame2->retryCnt < 4 && frame2->socket->state < IP_FIN_SERVER)
+            IPSendFrame(frame2);
+         else 
+         {
+            if(frame2->socket->state == IP_TCP)
+               IPClose(frame2->socket);
+            FrameFree(frame2);
+         }
       }
    }
 
@@ -1587,16 +1601,27 @@ void IPTick(void)
          socket = socket->next;
          if(socket2->timeout && --socket2->timeout == 0)
          {
-            socket2->timeout = 10;
-            if(IPVerbose && socket2->state != IP_CLOSED &&
-                            socket2->state != IP_FIN_SERVER)
-               printf("t(%d,%d)", socket2->state, FrameFreeCount);
-            if(socket2->state == IP_TCP)
-               IPClose(socket2);
-            else if(socket2->state == IP_FIN_CLIENT)
-               IPClose(socket2);
+            if(socket2->state == IP_CLOSED)
+            {
+               if(socket->prev == NULL)
+                  SocketHead = socket->next;
+               else
+                  socket->prev->next = socket->next;
+               if(socket->next)
+                  socket->next->prev = socket->prev;
+               //printf("freeSocket(%x) ", (int)socket);
+               free(socket);
+            }
             else
-               IPClose2(socket2);
+            {
+               socket2->timeout = 10;
+               if(IPVerbose)
+                  printf("t(%d,%d)", socket2->state, FrameFreeCount);
+               if(socket2->state == IP_TCP || socket2->state == IP_FIN_CLIENT)
+                  IPClose(socket2);
+               else
+                  IPClose2(socket2);
+            }
          }
       }
       ticksPrev = ticks;
