@@ -136,7 +136,7 @@ begin
          c_source := C_FROM_MULT;
          mult_function := MULT_READ_HI;
 
-      when "010001" =>   --FTHI  s->hi=r[rs];
+      when "010001" =>   --MTHI  s->hi=r[rs];
          mult_function := MULT_WRITE_HI;
 
       when "010010" =>   --MFLO  r[rd]=s->lo;
@@ -240,8 +240,8 @@ begin
       --when "10011" =>   --BGEZALL r[31]=s->pc_next; lbranch=r[rs]>=0;
       --when "00011" =>   --BGEZL   lbranch=r[rs]>=0;
 
-	  when others =>
-	  end case;
+      when others =>
+      end case;
 
    when "000011" =>   --JAL    r[31]=s->pc_next; s->pc_next=(s->pc&0xf0000000)|target;
       c_source := C_FROM_PC_PLUS4;
@@ -479,3 +479,4 @@ begin
 end process;
 
 end; --logic
+
