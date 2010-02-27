@@ -255,6 +255,7 @@ void EthernetThread(void *arg)
    int rc;
    unsigned int ticks, ticksLast=0;
    IPFrame *ethFrame=NULL;
+   static int ethErrorCount=0;
    (void)arg;
 
    for(;;)
@@ -274,7 +275,19 @@ void EthernetThread(void *arg)
          }
          length = EthernetReceive(ethFrame->packet, PACKET_SIZE);
          if(length == 0)
+         {
+#if 1       //Disable this on quiet networks
+            //No Ethernet packets seen for 60 seconds?
+            if(++ethErrorCount >= 120)
+            {
+               printf("\nEthernetInit\n");
+               ethErrorCount = 0;
+               EthernetInit(NULL);  //Need to re-initialize
+            }
+#endif
             break;
+         }
+         ethErrorCount = 0;
          Led(1, 1);
          rc = IPProcessEthernetPacket(ethFrame, length);
          Led(1, 0);
@@ -364,10 +377,13 @@ void EthernetInit(unsigned char MacAddress[6])
    volatile unsigned char *buf = (unsigned char*)ETHERNET_RECEIVE;
 
    CrcInit();
-   for(i = 0; i < 6; ++i)
+   if(MacAddress)
    {
-      value = MacAddress[i];
-      gDestMac[i+1] = (unsigned char)((value >> 4) | (value << 4));
+      for(i = 0; i < 6; ++i)
+      {
+         value = MacAddress[i];
+         gDestMac[i+1] = (unsigned char)((value >> 4) | (value << 4));
+      }
    }
 
    //Configure Ethernet PHY for 10Mbps full duplex via SMI interface
@@ -401,8 +417,10 @@ void EthernetInit(unsigned char MacAddress[6])
    MemoryWrite(GPIO0_OUT, ETHERNET_ENABLE);
 
    //Setup interrupts for receiving data
+   OS_InterruptRegister(IRQ_ETHERNET_RECEIVE, EthernetIsr);
+   if(SemEthernet)
+      return;
    SemEthernet = OS_SemaphoreCreate("eth", 0);
    SemEthTransmit = OS_SemaphoreCreate("ethT", 1);
    OS_ThreadCreate("eth", EthernetThread, NULL, 240, 0);
-   OS_InterruptRegister(IRQ_ETHERNET_RECEIVE, EthernetIsr);
 }
