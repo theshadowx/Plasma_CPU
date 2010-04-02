@@ -254,7 +254,7 @@ end process;
       -- maximum clock speed is cut in half (12.5 MHz instead of 25 MHz).
 
       clk_delayed <= not clk;  --Could be delayed by 1/4 clock cycle instead
-      dpram_bypass: process(clk, addr_write, reg_dest_new)
+      dpram_bypass: process(clk, addr_write, reg_dest_new, write_enable)
       begin
          if rising_edge(clk) and write_enable = '1' then
             addr_reg <= addr_write;
