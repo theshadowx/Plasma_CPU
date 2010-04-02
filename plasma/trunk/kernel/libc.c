@@ -183,18 +183,10 @@ int abs(int n)
 }
 
 
-static uint32 Rand1=0x1f2bcda3, Rand2=0xdeafbeef, Rand3=0xc5134306;
+static uint32 Rand1=0x1f2bcda3;
 int rand(void)
 {
-   int shift;
-   Rand1 += 0x13423123 + Rand2;
-   Rand2 += 0x2312fdea + Rand3;
-   Rand3 += 0xf2a12de1;
-   shift = Rand3 & 31;
-   Rand1 = (Rand1 << (32 - shift)) | (Rand1 >> shift);
-   Rand3 ^= Rand1;
-   shift = (Rand3 >> 8) & 31;
-   Rand2 = (Rand2 << (32 - shift)) | (Rand2 >> shift);
+   Rand1 = 1664525 * Rand1 + 1013904223;  //from D.E. Knuth and H.W. Lewis
    return Rand1;
 }
 
