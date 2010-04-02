@@ -1603,14 +1603,14 @@ void IPTick(void)
          {
             if(socket2->state == IP_CLOSED)
             {
-               if(socket->prev == NULL)
-                  SocketHead = socket->next;
+               if(socket2->prev == NULL)
+                  SocketHead = socket2->next;
                else
-                  socket->prev->next = socket->next;
-               if(socket->next)
-                  socket->next->prev = socket->prev;
-               //printf("freeSocket(%x) ", (int)socket);
-               free(socket);
+                  socket2->prev->next = socket2->next;
+               if(socket2->next)
+                  socket2->next->prev = socket2->prev;
+               //printf("freeSocket(%x) ", (int)socket2);
+               free(socket2);
             }
             else
             {
