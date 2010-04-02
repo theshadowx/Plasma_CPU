@@ -9,6 +9,7 @@
 -- DESCRIPTION:
 --    Control 4KB unified cache that uses the upper 4KB of the 8KB
 --    internal RAM.  Only lowest 2MB of DDR is cached.
+--    Only include file for Xilinx FPGAs.
 ---------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -49,7 +50,7 @@ architecture logic of cache is
    signal cache_we         : std_logic;
 begin
 
-   cache_proc: process(clk, reset, mem_busy, cache_address, cache_we,
+   cache_proc: process(clk, reset, mem_busy, cache_address, 
       state_reg, state, state_next, 
       address_next, byte_we_next, cache_tag_in, --Stage1
       cache_tag_reg, cache_tag_out,             --Stage2
@@ -57,11 +58,11 @@ begin
    begin
 
       case state_reg is
-      when STATE_CHECK =>
+      when STATE_CHECK =>           --cache idle
          cache_checking <= '0';
          cache_miss <= '0';
          state <= STATE_CHECK;
-      when STATE_CHECKING =>
+      when STATE_CHECKING =>        --current read in cached range, check if match
          cache_checking <= '1';
          if cache_tag_out /= cache_tag_reg or cache_tag_out = ONES(8 downto 0) then
             cache_miss <= '1';
@@ -70,20 +71,17 @@ begin
             cache_miss <= '0';
             state <= STATE_CHECK;
          end if;
-         cache_we <= '0';
-      when STATE_MISSED =>
+      when STATE_MISSED =>          --current read cache miss
          cache_checking <= '0';
          cache_miss <= '1';
-         cache_we <= '1';
          if mem_busy = '1' then
             state <= STATE_MISSED;
          else
             state <= STATE_CHECK;
          end if;
-      when STATE_WRITING =>
+      when STATE_WRITING =>         --writing back to cache and memory
          cache_checking <= '0';
          cache_miss <= '0';
-         cache_we <= '0';
          if mem_busy = '1' then
             state <= STATE_WRITING;
          else
@@ -92,19 +90,18 @@ begin
       when others =>
          cache_checking <= '0';
          cache_miss <= '0';
-         cache_we <= '0';
          state <= STATE_CHECK;
       end case; --state
 
-      if state = STATE_CHECK and state_reg /= STATE_MISSED then
+      if state = STATE_CHECK then   --check if next access in cached range
          cache_address <= '0' & address_next(11 downto 2);
          if address_next(30 downto 21) = "0010000000" then  --first 2MB of DDR
             cache_check <= '1';
-            if byte_we_next = "0000" then
+            if byte_we_next = "0000" then     --read cycle
                cache_we <= '0';
-               state_next <= STATE_CHECKING;
+               state_next <= STATE_CHECKING;  --need to check if match
             else
-               cache_we <= '1';
+               cache_we <= '1';               --update cache tag
                state_next <= STATE_WRITING;
             end if;
          else
@@ -115,10 +112,15 @@ begin
       else
          cache_address <= '0' & cpu_address(11 downto 2);
          cache_check <= '0';
+         if state = STATE_MISSED then
+            cache_we <= '1';                  --update cache tag
+         else
+            cache_we <= '0';
+         end if;
          state_next <= state;
       end if;
 
-      if byte_we_next = "0000" or byte_we_next = "1111" then
+      if byte_we_next = "0000" or byte_we_next = "1111" then  --read or 32-bit write
          cache_tag_in <= address_next(20 downto 12);
       else
          cache_tag_in <= ONES(8 downto 0);  --invalid tag
