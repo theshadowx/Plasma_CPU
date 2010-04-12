@@ -1578,10 +1578,12 @@ void IPTick(void)
       if(--frame2->timeout <= 0)
       {
          if(IPVerbose)
-            printf("r" /*"(%x,%d,%d,%d)"*/, (int)frame2->socket, frame2->retryCnt, 
-               frame2->length - TCP_DATA, FrameFreeCount);
+            printf("r" /*"(%x,%x,%d,%d,%d)"*/, (int)frame2, (int)frame2->socket, 
+               frame2->retryCnt, frame2->length - TCP_DATA,
+               frame2->socket->state);
          FrameRemove(&FrameResendHead, &FrameResendTail, frame2);
-         if(frame2->retryCnt < 4 && frame2->socket->state < IP_FIN_SERVER)
+         if(frame2->retryCnt < 4 && frame2->socket->state < IP_CLOSED &&
+               frame2->socket->state != IP_FIN_CLIENT)
             IPSendFrame(frame2);
          else 
          {
