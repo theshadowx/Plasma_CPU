@@ -151,6 +151,14 @@
 #define PING_DATA             44
 
 static void IPClose2(IPSocket *Socket);
+static void IPArp(unsigned char ipAddress[4]);
+
+typedef struct ArpCache_s {
+   unsigned char ip[4];
+   unsigned char mac[6];
+} ArpCache_t;
+static ArpCache_t ArpCache[10];
+static int ArpCacheIndex;
 
 static uint8 ethernetAddressGateway[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 #ifndef WIN32
@@ -160,7 +168,7 @@ static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd5};
 #endif
 
 static uint8 ipAddressPlasma[] =  {0x9d, 0xfe, 0x28, 10};   //changed by DHCP
-static uint8 ipAddressGateway[] = {0xff, 0xff, 0xff, 0xff}; //changed by DHCP
+static uint8 ipAddressGateway[] = {0x00, 0x00, 0x00, 0x00}; //changed by DHCP
 static uint32 ipAddressDns;                                 //changed by DHCP
 
 static OS_Mutex_t *IPMutex;
@@ -375,6 +383,26 @@ static void IPFrameReschedule(IPFrame *frame)
 static void IPSendFrame(IPFrame *frame)
 {
    uint32 message[4];
+   int i;
+   unsigned char *packet=frame->packet;
+
+   //Check if MAC address unknown
+   if(packet[ETHERNET_FRAME_TYPE+1] == 0x00 && //IP
+      packet[ETHERNET_DEST] == 0xff && packet[IP_DEST] != 0xff)
+   {
+      for(i = 0; i < sizeof(ArpCache) / sizeof(ArpCache_t); ++i)
+      {
+         if(memcmp(packet+IP_DEST, ArpCache[i].ip, 4) == 0)
+         {
+            memcpy(packet+ETHERNET_DEST, ArpCache[i].mac, 6);
+            if(frame->socket)
+               memcpy(frame->socket->headerSend+ETHERNET_DEST, ArpCache[i].mac, 6);
+            break;
+         }
+      }
+      if(packet[ETHERNET_DEST] == 0xff)
+         IPArp(packet+IP_DEST);
+   }
 
    if(FrameSendFunc)
    {
@@ -517,6 +545,32 @@ static void EthernetCreateResponse(unsigned char *packetOut,
 }
 
 
+static void IPArp(unsigned char ipAddress[4])
+{
+   IPFrame *frame;
+   uint8 *packetOut;
+
+   frame = IPFrameGet(0);
+   if(frame == NULL)
+      return;
+   packetOut = frame->packet;
+   memset(packetOut, 0, 512);
+   memset(packetOut+ETHERNET_DEST, 0xff, 6);
+   memcpy(packetOut+ETHERNET_SOURCE, ethernetAddressPlasma, 6);
+   packetOut[ETHERNET_FRAME_TYPE] = 0x08;
+   packetOut[ETHERNET_FRAME_TYPE+1] = 0x06;
+   packetOut[ARP_HARD_TYPE+1] = 0x01;
+   packetOut[ARP_PROT_TYPE] = 0x08;
+   packetOut[ARP_HARD_SIZE] = 0x06;
+   packetOut[ARP_PROT_SIZE] = 0x04;
+   packetOut[ARP_OP+1] = 1;
+   memcpy(packetOut+ARP_ETHERNET_SENDER, ethernetAddressPlasma, 6);
+   memcpy(packetOut+ARP_IP_SENDER, ipAddressPlasma, 4);
+   memcpy(packetOut+ARP_IP_TARGET, ipAddress, 4);
+   IPSendPacket(NULL, frame, 60);
+}
+
+
 static void IPDhcp(const unsigned char *packet, int length, int state)
 {
    uint8 *packetOut, *ptr;
@@ -597,25 +651,8 @@ static void IPDhcp(const unsigned char *packet, int length, int state)
          //Check if DHCP reply came from gateway
          if(memcmp(packet+IP_SOURCE, ipAddressGateway, 4))
          {
-            //Send ARP to gateway
-            frame = IPFrameGet(0);
-            if(frame == NULL)
-               return;
-            packetOut = frame->packet;
-            memset(packetOut, 0, 512);
-            memset(packetOut+ETHERNET_DEST, 0xff, 6);
-            memcpy(packetOut+ETHERNET_SOURCE, ethernetAddressPlasma, 6);
-            packetOut[ETHERNET_FRAME_TYPE] = 0x08;
-            packetOut[ETHERNET_FRAME_TYPE+1] = 0x06;
-            packetOut[ARP_HARD_TYPE+1] = 0x01;
-            packetOut[ARP_PROT_TYPE] = 0x08;
-            packetOut[ARP_HARD_SIZE] = 0x06;
-            packetOut[ARP_PROT_SIZE] = 0x04;
-            packetOut[ARP_OP+1] = 1;
-            memcpy(packetOut+ARP_ETHERNET_SENDER, ethernetAddressPlasma, 6);
-            memcpy(packetOut+ARP_IP_SENDER, ipAddressPlasma, 4);
-            memcpy(packetOut+ARP_IP_TARGET, ipAddressGateway, 4);
-            IPSendPacket(NULL, frame, 60);
+            memset(ethernetAddressGateway, 0xff, 6);
+            IPArp(ipAddressGateway);     //Send ARP to gateway
          }
       }
    }
@@ -828,10 +865,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
    {
       notify = 1;
-      if(socket->state == IP_FIN_SERVER)
-         IPClose2(socket);
-      else if(socket->state == IP_TCP)
-         socket->state = IP_FIN_CLIENT;
+      IPClose2(socket);
    }
    //Copy packet into socket
    else if(socket->ack == seq && bytes > 0)
@@ -884,7 +918,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       ++socket->ack;
       TCPSendPacket(socket, frameOut, TCP_DATA);
       if(socket->state == IP_FIN_SERVER)
-         IPClose2(socket);
+         socket->timeout = SOCKET_TIMEOUT;
       else if(socket->state == IP_TCP)
          socket->state = IP_FIN_CLIENT;
    }
@@ -914,10 +948,17 @@ int IPProcessEthernetPacket(IPFrame *frameIn, int length)
    {
       //Check if ARP reply
       if(memcmp(packet+ETHERNET_DEST, ethernetAddressPlasma, 6) == 0 &&
-         packet[ARP_OP+1] == 2 && memcmp(packet+ARP_IP_SENDER, ipAddressGateway, 4) == 0)
+         packet[ARP_OP+1] == 2)
       {
-         //Found MAC address for gateway
-         memcpy(ethernetAddressGateway, packet+ARP_ETHERNET_SENDER, 6);
+         memcpy(ArpCache[ArpCacheIndex].ip, packet+ARP_IP_SENDER, 4);
+         memcpy(ArpCache[ArpCacheIndex].mac, packet+ARP_ETHERNET_SENDER, 6);
+         if(++ArpCacheIndex >= sizeof(ArpCache) / sizeof(ArpCache_t))
+            ArpCacheIndex = 0;
+         if(memcmp(packet+ARP_IP_SENDER, ipAddressGateway, 4) == 0)
+         {
+            //Found MAC address for gateway
+            memcpy(ethernetAddressGateway, packet+ARP_ETHERNET_SENDER, 6);
+         }
          return 0;
       }
 
@@ -1485,8 +1526,8 @@ static void IPClose2(IPSocket *socket)
       FrameFree(framePrev);
    }
 
-   //Give application 30 seconds to stop using socket
-   socket->timeout = 30;
+   //Give application time to stop using socket
+   socket->timeout = SOCKET_TIMEOUT;
    socket->state = IP_CLOSED;
 
    OS_MutexPost(IPMutex);
@@ -1511,13 +1552,9 @@ void IPClose(IPSocket *socket)
    frameOut->packet[TCP_FLAGS] = TCP_FLAGS_FIN | TCP_FLAGS_ACK;
    TCPSendPacket(socket, frameOut, TCP_DATA);
    ++socket->seq;
-   if(socket->state == IP_FIN_CLIENT)
-      IPClose2(socket);
-   else
-   {
-      socket->timeout = 20;
-      socket->state = IP_FIN_SERVER;
-   }
+   socket->timeout = SOCKET_TIMEOUT;
+   socket->timeoutReset = SOCKET_TIMEOUT;
+   socket->state = IP_FIN_SERVER;
 }
 
 
@@ -1582,8 +1619,7 @@ void IPTick(void)
                frame2->retryCnt, frame2->length - TCP_DATA,
                frame2->socket->state);
          FrameRemove(&FrameResendHead, &FrameResendTail, frame2);
-         if(frame2->retryCnt < 4 && frame2->socket->state < IP_CLOSED &&
-               frame2->socket->state != IP_FIN_CLIENT)
+         if(frame2->retryCnt < 4 && frame2->socket->state < IP_CLOSED)
             IPSendFrame(frame2);
          else 
          {
@@ -1603,7 +1639,12 @@ void IPTick(void)
          socket = socket->next;
          if(socket2->timeout && --socket2->timeout == 0)
          {
-            if(socket2->state == IP_CLOSED)
+            socket2->timeout = SOCKET_TIMEOUT;
+            if(socket2->state <= IP_TCP || socket2->state == IP_FIN_CLIENT)
+               IPClose(socket2);
+            else if(socket2->state != IP_CLOSED)
+               IPClose2(socket2);
+            else
             {
                if(socket2->prev == NULL)
                   SocketHead = socket2->next;
@@ -1613,16 +1654,6 @@ void IPTick(void)
                   socket2->next->prev = socket2->prev;
                //printf("freeSocket(%x) ", (int)socket2);
                free(socket2);
-            }
-            else
-            {
-               socket2->timeout = 10;
-               if(IPVerbose)
-                  printf("t(%d,%d)", socket2->state, FrameFreeCount);
-               if(socket2->state == IP_TCP || socket2->state == IP_FIN_CLIENT)
-                  IPClose(socket2);
-               else
-                  IPClose2(socket2);
             }
          }
       }
