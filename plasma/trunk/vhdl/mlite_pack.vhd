@@ -348,7 +348,6 @@ package mlite_pack is
 
    component cache
       generic(memory_type : string := "DEFAULT");
-      
       port(clk            : in std_logic;
            reset          : in std_logic;
            address_next   : in std_logic_vector(31 downto 2);
@@ -356,9 +355,9 @@ package mlite_pack is
            cpu_address    : in std_logic_vector(31 downto 2);
            mem_busy       : in std_logic;
 
-           cache_check    : out std_logic;   --Stage1: address_next in first 2MB DDR
-           cache_checking : out std_logic;   --Stage2: cache checking
-           cache_miss     : out std_logic);  --Stage2-3: cache miss
+           cache_access   : out std_logic;   --access 4KB cache
+           cache_checking : out std_logic;   --checking if cache hit
+           cache_miss     : out std_logic);  --cache miss
    end component; --cache
 
    component ram

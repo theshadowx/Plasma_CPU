@@ -96,7 +96,7 @@ architecture logic of plasma is
    signal ram_data_w        : std_logic_vector(31 downto 0);
    signal ram_data_r        : std_logic_vector(31 downto 0);
 
-   signal cache_check       : std_logic;
+   signal cache_access      : std_logic;
    signal cache_checking    : std_logic;
    signal cache_miss        : std_logic;
    signal cache_hit         : std_logic;
@@ -107,7 +107,7 @@ begin  --architecture
    cache_hit <= cache_checking and not cache_miss;
    cpu_pause <= (uart_write_busy and enable_uart and write_enable) or  --UART busy
       cache_miss or                                                    --Cache wait
-      (cpu_address(28) and not cache_hit and mem_busy);                --DDR or flash                                    --DDR in use
+      (cpu_address(28) and not cache_hit and mem_busy);                --DDR or flash
    irq_status <= gpioA_in(31) & not gpioA_in(31) &
                  irq_eth_send & irq_eth_rec & 
                  counter_reg(18) & not counter_reg(18) &
@@ -140,7 +140,7 @@ begin  --architecture
          mem_pause    => cpu_pause);
 
    opt_cache: if use_cache = '0' generate
-      cache_check <= '0';
+      cache_access <= '0';
       cache_checking <= '0';
       cache_miss <= '0';
    end generate;
@@ -158,9 +158,9 @@ begin  --architecture
          cpu_address    => cpu_address(31 downto 2),
          mem_busy       => mem_busy,
 
-         cache_check    => cache_check,    --Stage1: address_next in first 2MB DDR
-         cache_checking => cache_checking, --Stage2
-         cache_miss     => cache_miss);    --Stage3
+         cache_access   => cache_access,    --access 4KB cache
+         cache_checking => cache_checking,  --checking if cache hit
+         cache_miss     => cache_miss);     --cache miss
    end generate; --opt_cache2
 
    no_ddr_start <= not eth_pause and cache_checking;
@@ -225,14 +225,33 @@ begin  --architecture
       end if;
    end process;
 
-   ram_enable <= '1' when address_next(30 downto 28) = "000" or 
-                  cache_check = '1' or cache_miss = '1' else '0';
-   ram_byte_we <= byte_we_next when cache_miss = '0' else "1111";
-   ram_address(31 downto 13) <= ZERO(31 downto 13);
-   ram_address(12 downto 2) <= (address_next(12) or cache_check) & address_next(11 downto 2)
-            when cache_miss = '0' else 
-            '1' & cpu_address(11 downto 2);  --Update cache after cache miss
-   ram_data_w <= cpu_data_w when cache_miss = '0' else data_read;
+   ram_proc: process(cache_access, cache_miss,
+                     address_next, cpu_address,
+                     byte_we_next, cpu_data_w, data_read)
+   begin
+      if cache_access = '1' then    --Check if cache hit or write through
+         ram_enable <= '1';
+         ram_byte_we <= byte_we_next;
+         ram_address(31 downto 2) <= ZERO(31 downto 16) & 
+            "0001" & address_next(11 downto 2);
+         ram_data_w <= cpu_data_w;
+      elsif cache_miss = '1' then  --Update cache after cache miss
+         ram_enable <= '1';
+         ram_byte_we <= "1111";
+         ram_address(31 downto 2) <= ZERO(31 downto 16) & 
+            "0001" & cpu_address(11 downto 2);
+         ram_data_w <= data_read;
+      else                         --Normal non-cache access
+         if address_next(30 downto 28) = "000" then
+            ram_enable <= '1';
+         else
+            ram_enable <= '0';
+         end if;
+         ram_byte_we <= byte_we_next;
+         ram_address(31 downto 2) <= address_next(31 downto 2);
+         ram_data_w <= cpu_data_w;
+      end if;
+   end process;
 
    u2_ram: ram 
       generic map (memory_type => memory_type)

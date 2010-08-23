@@ -27,17 +27,17 @@ entity cache is
         cpu_address    : in std_logic_vector(31 downto 2);
         mem_busy       : in std_logic;
 
-        cache_check    : out std_logic;   --Stage1: address_next in first 2MB DDR
-        cache_checking : out std_logic;   --Stage2: cache checking
-        cache_miss     : out std_logic);  --Stage2-3: cache miss
+        cache_access   : out std_logic;   --access 4KB cache
+        cache_checking : out std_logic;   --checking if cache hit
+        cache_miss     : out std_logic);  --cache miss
 end; --cache
 
 architecture logic of cache is
    subtype state_type is std_logic_vector(1 downto 0);
-   constant STATE_CHECK    : state_type := "00";
+   constant STATE_IDLE     : state_type := "00";
    constant STATE_CHECKING : state_type := "01";
    constant STATE_MISSED   : state_type := "10";
-   constant STATE_WRITING  : state_type := "11";
+   constant STATE_WAITING  : state_type := "11";
 
    signal state_reg        : state_type;
    signal state            : state_type;
@@ -58,10 +58,10 @@ begin
    begin
 
       case state_reg is
-      when STATE_CHECK =>           --cache idle
+      when STATE_IDLE =>            --cache idle
          cache_checking <= '0';
-         cache_miss <= '0';
-         state <= STATE_CHECK;
+         cache_miss <= '0'; 
+         state <= STATE_IDLE;
       when STATE_CHECKING =>        --current read in cached range, check if match
          cache_checking <= '1';
          if cache_tag_out /= cache_tag_reg or cache_tag_out = ONES(8 downto 0) then
@@ -69,7 +69,7 @@ begin
             state <= STATE_MISSED;
          else
             cache_miss <= '0';
-            state <= STATE_CHECK;
+            state <= STATE_IDLE;
          end if;
       when STATE_MISSED =>          --current read cache miss
          cache_checking <= '0';
@@ -77,41 +77,41 @@ begin
          if mem_busy = '1' then
             state <= STATE_MISSED;
          else
-            state <= STATE_CHECK;
+            state <= STATE_WAITING;
          end if;
-      when STATE_WRITING =>         --writing back to cache and memory
+      when STATE_WAITING =>         --waiting for memory access to complete
          cache_checking <= '0';
          cache_miss <= '0';
          if mem_busy = '1' then
-            state <= STATE_WRITING;
+            state <= STATE_WAITING;
          else
-            state <= STATE_CHECK;
+            state <= STATE_IDLE;
          end if;
       when others =>
          cache_checking <= '0';
          cache_miss <= '0';
-         state <= STATE_CHECK;
+         state <= STATE_IDLE;
       end case; --state
 
-      if state = STATE_CHECK then   --check if next access in cached range
+      if state = STATE_IDLE then    --check if next access in cached range
          cache_address <= '0' & address_next(11 downto 2);
          if address_next(30 downto 21) = "0010000000" then  --first 2MB of DDR
-            cache_check <= '1';
+            cache_access <= '1';
             if byte_we_next = "0000" then     --read cycle
                cache_we <= '0';
                state_next <= STATE_CHECKING;  --need to check if match
             else
                cache_we <= '1';               --update cache tag
-               state_next <= STATE_WRITING;
+               state_next <= STATE_WAITING;
             end if;
          else
-            cache_check <= '0';
+            cache_access <= '0';
             cache_we <= '0';
-            state_next <= STATE_CHECK;
+            state_next <= STATE_IDLE;
          end if;
       else
          cache_address <= '0' & cpu_address(11 downto 2);
-         cache_check <= '0';
+         cache_access <= '0';
          if state = STATE_MISSED then
             cache_we <= '1';                  --update cache tag
          else
@@ -127,11 +127,11 @@ begin
       end if;
 
       if reset = '1' then
-         state_reg <= STATE_CHECK;
+         state_reg <= STATE_IDLE;
          cache_tag_reg <= ZERO(8 downto 0);
       elsif rising_edge(clk) then
          state_reg <= state_next;
-         if state = STATE_CHECK and state_reg /= STATE_MISSED then
+         if state = STATE_IDLE and state_reg /= STATE_MISSED then
             cache_tag_reg <= cache_tag_in;
          end if;
       end if;
