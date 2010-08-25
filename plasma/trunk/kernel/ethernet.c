@@ -413,14 +413,16 @@ void EthernetInit(unsigned char MacAddress[6])
    for(i = 0; i <= INDEX_MASK; ++i)
       buf[i] = BYTE_EMPTY;
 
-   //Start receive DMA
-   MemoryWrite(GPIO0_OUT, ETHERNET_ENABLE);
+   if(SemEthernet == NULL)
+   {
+      SemEthernet = OS_SemaphoreCreate("eth", 0);
+      SemEthTransmit = OS_SemaphoreCreate("ethT", 1);
+      OS_ThreadCreate("eth", EthernetThread, NULL, 240, 0);
+   }
 
    //Setup interrupts for receiving data
    OS_InterruptRegister(IRQ_ETHERNET_RECEIVE, EthernetIsr);
-   if(SemEthernet)
-      return;
-   SemEthernet = OS_SemaphoreCreate("eth", 0);
-   SemEthTransmit = OS_SemaphoreCreate("ethT", 1);
-   OS_ThreadCreate("eth", EthernetThread, NULL, 240, 0);
+
+   //Start receive DMA
+   MemoryWrite(GPIO0_OUT, ETHERNET_ENABLE);
 }
