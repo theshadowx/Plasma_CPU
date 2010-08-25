@@ -73,9 +73,15 @@ ram_image.exe: ram_image.c
 # traffic over UART.  Get wpcap.lib from http://www.winpcap.org/.
 # Requires Windows OS
 # For Linux, use any serial port program at 57600 baud 8-bits;1-stop bit
+# This version does not support Ethernet packet transfers
 etermip: etermip.c
 	-@$(CC_X86) -o etermip.exe etermip.c wpcap.lib
+
+# Uses wpcap.lib for receiving and transmitting raw Ethernet packets
+# Get wpcap.lib from http://www.winpcap.org/.
+etermip2: etermip.c
 	@echo Get wpcap.lib from http://www.winpcap.org/
+	-@$(CC_X86) -DUSE_WPCAP -o etermip.exe etermip.c wpcap.lib
 
 nomult.exe: nomult.c
 	-@$(CC_X86) -o nomult.exe nomult.c
@@ -142,7 +148,7 @@ count3:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c
-	$(LD_MIPS) -Ttext 0x1000 -eentry -Map test.map -s -N -o test.axf \
+	$(LD_MIPS) -Ttext 0x2000 -eentry -Map test.map -s -N -o test.axf \
 		boot.o count.o no_os.o
 	-$(DUMP_MIPS) --disassemble test.axf > test.lst
 	$(CONVERT_BIN)
@@ -205,7 +211,7 @@ ddr_test:
 memtest:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) memtest.c
-	$(LD_MIPS) -Ttext 0x1000 -eentry -o test.axf boot.o memtest.o
+	$(LD_MIPS) -Ttext 0x2000 -eentry -o test.axf boot.o memtest.o
 	$(CONVERT_BIN)
 	
 memtest2:

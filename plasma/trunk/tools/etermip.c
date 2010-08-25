@@ -16,7 +16,12 @@
 #include <conio.h>
 
 //#define SIMULATE_PLASMA
+//#define USE_WPCAP
+#ifdef SIMULATE_PLASMA
+#define USE_WPCAP
+#endif
 
+#ifdef USE_WPCAP
 #if 0
    #include "pcap.h"
 #else
@@ -56,6 +61,8 @@ static const unsigned char ethernetAddressPhantom[] = {0x00, 0x10, 0xdd, 0xce, 0
 static const unsigned char ethernetAddressPhantom2[] = {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd5};
 
 static pcap_t *adhandle;
+#endif //USE_WPCAP
+
 static HANDLE serial_handle;
 static int PacketBytes, PacketLength, PacketChecksum, Checksum;
 static int ChecksumOk, ChecksumError;
@@ -73,6 +80,7 @@ static int EthernetActive;
 #endif
 
 
+#ifdef USE_WPCAP
 int WinPcapInit(void)
 {
 	pcap_if_t *alldevs;
@@ -165,6 +173,7 @@ void EthernetSendPacket(const unsigned char *packet, int length)
    if(EthernetActive == 0)
       WinPcapInit();
    EthernetActive = 1;
+   //if((rand() % 8) == 0) return;
    pcap_sendpacket(adhandle, packet, length);
 }
 
@@ -214,54 +223,6 @@ void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_cha
    if(rc)
       ethFrame = NULL;
 #endif
-}
-
-/**************************************************************/
-
-long SerialOpen(char *name, long baud)
-{
-   DCB dcb;
-   COMMTIMEOUTS comm_timeouts;
-   BOOL rc;
-   serial_handle = CreateFile(name, GENERIC_READ|GENERIC_WRITE,
-      0, NULL, OPEN_EXISTING, 0, NULL);
-   if(serial_handle == INVALID_HANDLE_VALUE) 
-      printf("Serial Port In Use!\n");
-   rc = SetupComm(serial_handle, 16000, 16000);
-   if(rc == FALSE) 
-      printf("Serial port already in use!!!\n");
-   rc = GetCommState(serial_handle, &dcb);
-   if(rc == FALSE) 
-      printf("ERROR2\n");
-   dcb.BaudRate = baud;
-   dcb.fBinary = 1;
-   dcb.ByteSize = 8;
-   dcb.fAbortOnError = 0;
-   dcb.StopBits = 0; //ONESTOPBIT;
-   dcb.fOutX = 0;
-   dcb.fInX = 0;
-   dcb.fNull = 0;
-   dcb.Parity = 0;
-   dcb.fOutxCtsFlow = 0;
-   dcb.fOutxDsrFlow = 0;
-   dcb.fOutX = 0;
-   dcb.fInX = 0;
-   dcb.fRtsControl = 0;
-   rc = SetCommState(serial_handle, &dcb);
-   if(rc == FALSE) 
-      printf("ERROR3\n");
-   rc = GetCommTimeouts(serial_handle, &comm_timeouts);
-   if(rc == FALSE) 
-      printf("ERROR4\n");
-   comm_timeouts.ReadIntervalTimeout = MAXDWORD;  //non-blocking read
-   comm_timeouts.ReadTotalTimeoutMultiplier = 0;
-   comm_timeouts.ReadTotalTimeoutConstant = 0;
-   comm_timeouts.WriteTotalTimeoutMultiplier = 0;  //blocking write
-   comm_timeouts.WriteTotalTimeoutConstant = 0;
-   rc = SetCommTimeouts(serial_handle, &comm_timeouts);
-   if(rc == FALSE) 
-      printf("ERROR5\n");
-   return(0);
 }
 
 
@@ -314,6 +275,56 @@ static void UartPacketRead(int value)
       }
    }
 }
+#endif //USE_WPCAP
+
+/**************************************************************/
+
+long SerialOpen(char *name, long baud)
+{
+   DCB dcb;
+   COMMTIMEOUTS comm_timeouts;
+   BOOL rc;
+   serial_handle = CreateFile(name, GENERIC_READ|GENERIC_WRITE,
+      0, NULL, OPEN_EXISTING, 0, NULL);
+   if(serial_handle == INVALID_HANDLE_VALUE) 
+      printf("Serial Port In Use!\n");
+   rc = SetupComm(serial_handle, 16000, 16000);
+   if(rc == FALSE) 
+      printf("Serial port already in use!!!\n");
+   rc = GetCommState(serial_handle, &dcb);
+   if(rc == FALSE) 
+      printf("ERROR2\n");
+   dcb.BaudRate = baud;
+   dcb.fBinary = 1;
+   dcb.fParity = 0;
+   dcb.ByteSize = 8;
+   dcb.StopBits = 0; //ONESTOPBIT;
+   dcb.fOutX = 0;
+   dcb.fInX = 0;
+   dcb.fNull = 0;
+   dcb.Parity = 0;
+   dcb.fOutxCtsFlow = 0;
+   dcb.fOutxDsrFlow = 0;
+   dcb.fOutX = 0;
+   dcb.fInX = 0;
+   dcb.fRtsControl = 0;
+   dcb.fDsrSensitivity = 0;
+   rc = SetCommState(serial_handle, &dcb);
+   if(rc == FALSE) 
+      printf("ERROR3\n");
+   rc = GetCommTimeouts(serial_handle, &comm_timeouts);
+   if(rc == FALSE) 
+      printf("ERROR4\n");
+   comm_timeouts.ReadIntervalTimeout = MAXDWORD;  //non-blocking read
+   comm_timeouts.ReadTotalTimeoutMultiplier = 0;
+   comm_timeouts.ReadTotalTimeoutConstant = 0;
+   comm_timeouts.WriteTotalTimeoutMultiplier = 0;  //blocking write
+   comm_timeouts.WriteTotalTimeoutConstant = 0;
+   rc = SetCommTimeouts(serial_handle, &comm_timeouts);
+   if(rc == FALSE) 
+      printf("ERROR5\n");
+   return(0);
+}
 
 
 long SerialRead(unsigned char *data, unsigned long length)
@@ -327,16 +338,17 @@ long SerialRead(unsigned char *data, unsigned long length)
       ReadFile(serial_handle, buf, 1, &bytes, NULL);
       if(bytes == 0)
          break;
+#ifdef USE_WPCAP
       if(buf[0] == 0xff || PacketBytes)
          UartPacketRead(buf[0]);
       else
+#endif
          data[count++] = buf[0];
       if(count >= length)
          break;
    }
    return count;
 }
-
 
 //****************************************************
 
@@ -409,6 +421,7 @@ int main(int argc, char *argv[])
          printf("%s", buf);
       }
 
+#ifdef USE_WPCAP
       // Read Ethernet
       while(EthernetActive)
       {
@@ -420,6 +433,7 @@ int main(int argc, char *argv[])
          if(EthernetActive)
             packet_handler(NULL, &header, pkt_data);
       }
+#endif
       Sleep(10);
       ticks = GetTickCount();
       if(ticks - ticksLast > 1000)
