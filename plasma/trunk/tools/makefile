@@ -44,7 +44,7 @@ endif
 CFLAGS = -O2 -Wall -c -s 
 
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
-	@echo make targets = count, opcodes, pi, test, run, tohex, \
+	@echo make targets = count, opcodes, pi, test, run, tohex,\
 	bootldr, toimage, etermip
 	
 clean:
