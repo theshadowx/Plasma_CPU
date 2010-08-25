@@ -167,7 +167,7 @@ static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
 static uint8 ethernetAddressPlasma[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd5};
 #endif
 
-static uint8 ipAddressPlasma[] =  {0x9d, 0xfe, 0x28, 10};   //changed by DHCP
+static uint8 ipAddressPlasma[] =  {192, 168, 100, 10};      //changed by DHCP
 static uint8 ipAddressGateway[] = {0x00, 0x00, 0x00, 0x00}; //changed by DHCP
 static uint32 ipAddressDns;                                 //changed by DHCP
 
