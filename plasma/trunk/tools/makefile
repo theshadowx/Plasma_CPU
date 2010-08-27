@@ -45,7 +45,7 @@ CFLAGS = -O2 -Wall -c -s
 
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
 	@echo make targets = count, opcodes, pi, test, run, tohex,\
-	bootldr, toimage, etermip
+	bootldr, toimage, eterm
 	
 clean:
 	-$(RM) *.o *.obj *.map *.lst *.hex *.txt *.exe *.axf
@@ -69,17 +69,18 @@ bintohex.exe: bintohex.c
 ram_image.exe: ram_image.c
 	@$(CC_X86) -o ram_image.exe ram_image.c
 
+# Terminal program that will download a new image.
+# For Linux, use any serial port program at 57600 baud 8-bits;1-stop bit
+# This mode does not support Ethernet packet transfers.
+eterm: etermip.c
+	-@$(CC_X86) -o etermip.exe etermip.c
+
 # Terminal program that will download a new image and supports Ethernet
 # traffic over UART.  Get wpcap.lib from http://www.winpcap.org/.
 # Requires Windows OS
-# For Linux, use any serial port program at 57600 baud 8-bits;1-stop bit
-# This version does not support Ethernet packet transfers
-etermip: etermip.c
-	-@$(CC_X86) -o etermip.exe etermip.c wpcap.lib
-
 # Uses wpcap.lib for receiving and transmitting raw Ethernet packets
 # Get wpcap.lib from http://www.winpcap.org/.
-etermip2: etermip.c
+etermip: etermip.c
 	@echo Get wpcap.lib from http://www.winpcap.org/
 	-@$(CC_X86) -DUSE_WPCAP -o etermip.exe etermip.c wpcap.lib
 
