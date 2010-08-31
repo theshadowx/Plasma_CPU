@@ -14,7 +14,7 @@
 --    Then remove references to the entity mult in mlite_cpu.vhd.
 --
 -- MULTIPLICATION
--- long64 answer = 0
+-- long64 answer = 0;
 -- for(i = 0; i < 32; ++i)
 -- {
 --    answer = (answer >> 1) + (((b&1)?a:0) << 31);
@@ -127,6 +127,12 @@ begin
                   aa_reg <= a;
                   bb_reg <= b;
                   sign_reg <= a(31);
+               ---- Special case of 0x80000000 * negative number
+               --elsif a(31) = '1' and (a(30 downto 0) = ZERO(30 downto 0) or 
+               --                       b(30 downto 0) = ZERO(30 downto 0)) then
+               --   aa_reg <= a;        --convert to unsigned mult
+               --   bb_reg <= b;
+               --   sign_reg <= '0';
                else
                   aa_reg <= a_neg;
                   bb_reg <= b_neg;
