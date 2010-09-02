@@ -126,18 +126,11 @@ begin
                if b(31) = '0' then
                   aa_reg <= a;
                   bb_reg <= b;
-                  sign_reg <= a(31);
-               ---- Special case of 0x80000000 * negative number
-               --elsif a(31) = '1' and (a(30 downto 0) = ZERO(30 downto 0) or 
-               --                       b(30 downto 0) = ZERO(30 downto 0)) then
-               --   aa_reg <= a;        --convert to unsigned mult
-               --   bb_reg <= b;
-               --   sign_reg <= '0';
                else
                   aa_reg <= a_neg;
                   bb_reg <= b_neg;
-                  sign_reg <= a_neg(31);
                end if;
+               sign_reg <= a(31) xor b(31);
                sign2_reg <= '0';
                upper_reg <= ZERO;
                count_reg <= "100000";
