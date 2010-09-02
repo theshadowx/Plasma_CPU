@@ -580,7 +580,7 @@ void mult_big_signed(int a,
 {
    unsigned int ahi, alo, bhi, blo;
    unsigned int c0, c1, c2;
-   unsigned int c1_a, c1_b;
+   int c1_a, c1_b;
 
    ahi = a >> 16;
    alo = a & 0xffff;
