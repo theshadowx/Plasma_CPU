@@ -1231,7 +1231,8 @@ static void OS_ThreadTickToggle(void *arg)
 void OS_Init(uint32 *heapStorage, uint32 bytes)
 {
    int i;
-   OS_AsmInterruptInit();               //Patch interrupt vector
+   if((int)OS_Init > 0x10000000)        //Running from DDR?
+      OS_AsmInterruptInit();            //Patch interrupt vector
    OS_InterruptMaskClear(0xffffffff);   //Disable interrupts
    HeapArray[0] = OS_HeapCreate("Default", heapStorage, bytes);
    HeapArray[1] = HeapArray[0];
