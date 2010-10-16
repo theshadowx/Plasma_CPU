@@ -113,7 +113,7 @@ rtos_tcpip_eth:
 	@sort <test.map >test2.map
 	@$(DUMP_MIPS) --disassemble test.axf > test.lst
 
-# Build full test application
+# Build full test application.  (Use rtos_tcpip_eth instead.) 
 rtosfull: 
 	$(AS_MIPS) -o boot.o $(TOOLS_DIR)boot.asm
 	$(GCC_MIPS) rtos.c
