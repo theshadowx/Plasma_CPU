@@ -389,6 +389,7 @@ static void OS_ThreadReschedule(int roundRobin)
       ThreadNeedReschedule[cpuIndex] |= 2 + roundRobin;  //Reschedule later
       return;
    }
+   ThreadNeedReschedule[cpuIndex] = 0;
 
    //Determine which thread should run
    threadNext = ThreadHead;
