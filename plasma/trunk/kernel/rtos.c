@@ -129,8 +129,8 @@ static OS_Thread_t *ThreadCurrent[OS_CPU_COUNT];  //Currently running thread(s)
 static OS_Thread_t *ThreadHead;   //Linked list of threads sorted by priority
 static OS_Thread_t *TimeoutHead;  //Linked list of threads sorted by timeout
 static int ThreadSwapEnabled;
-static uint32 ThreadTime;
-static void *NeedToFree;
+static uint32 ThreadTime;         //Number of ~10ms ticks since reboot
+static void *NeedToFree;          //Closed but not yet freed thread
 static OS_Semaphore_t SemaphoreReserved[SEM_RESERVED_COUNT];
 static OS_Semaphore_t *SemaphoreSleep;
 static OS_Semaphore_t *SemaphoreRelease;
@@ -168,7 +168,7 @@ void OS_HeapDestroy(OS_Heap_t *heap)
 
 
 /******************************************/
-//Modified from K&R
+//Modified from Kernighan & Ritchie "The C Programming Language"
 void *OS_HeapMalloc(OS_Heap_t *heap, int bytes)
 {
    HeapNode_t *node, *prevp;
@@ -395,7 +395,7 @@ static void OS_ThreadReschedule(int roundRobin)
    threadNext = ThreadHead;
    while(threadNext && threadNext->cpuLock != -1 && 
          threadNext->cpuLock != cpuIndex)
-      threadNext = threadNext->next;
+      threadNext = threadNext->next;         //Skip CPU locked threads
    if(threadNext == NULL)
       return;
    threadCurrent = ThreadCurrent[cpuIndex];
@@ -516,9 +516,10 @@ OS_Thread_t *OS_ThreadCreate(const char *name,
    env->sp = (uint32)stack + stackSize - 24; //minimum stack frame size
    env->pc = (uint32)OS_ThreadInit;
 
+   //Add thread to linked list of ready to run threads
    state = OS_CriticalBegin();
    OS_ThreadPriorityInsert(&ThreadHead, thread);
-   OS_ThreadReschedule(0);
+   OS_ThreadReschedule(0);                   //run highest priority thread
    OS_CriticalEnd(state);
    return thread;
 }
@@ -531,6 +532,7 @@ void OS_ThreadExit(void)
 
    for(;;)
    {
+      //Free the memory for closed but not yet freed threads
       OS_SemaphorePend(SemaphoreRelease, OS_WAIT_FOREVER);
       if(NeedToFree)
          OS_HeapFree(NeedToFree);
@@ -552,6 +554,7 @@ void OS_ThreadExit(void)
 
 
 /******************************************/
+//Return currently running thread
 OS_Thread_t *OS_ThreadSelf(void)
 {
    return ThreadCurrent[OS_CpuIndex()];
@@ -559,6 +562,7 @@ OS_Thread_t *OS_ThreadSelf(void)
 
 
 /******************************************/
+//Sleep for ~10 msecs ticks
 void OS_ThreadSleep(int ticks)
 {
    OS_SemaphorePend(SemaphoreSleep, ticks);
@@ -566,6 +570,7 @@ void OS_ThreadSleep(int ticks)
 
 
 /******************************************/
+//Return the number of ~10 msecs ticks since reboot
 uint32 OS_ThreadTime(void)
 {
    return ThreadTime;
@@ -573,6 +578,7 @@ uint32 OS_ThreadTime(void)
 
 
 /******************************************/
+//Save thread unique values
 void OS_ThreadInfoSet(OS_Thread_t *thread, uint32 index, void *Info)
 {
    if(index < INFO_COUNT)
@@ -621,7 +627,8 @@ void OS_ThreadProcessId(OS_Thread_t *thread, uint32 processId, OS_Heap_t *heap)
 
 
 /******************************************/
-//Must be called with interrupts disabled
+//Must be called with interrupts disabled every ~10 msecs
+//Will wake up threads that have timed out waiting on a semaphore
 void OS_ThreadTick(void *Arg)
 {
    OS_Thread_t *thread;
@@ -629,13 +636,15 @@ void OS_ThreadTick(void *Arg)
    int diff;
    (void)Arg;
 
-   ++ThreadTime;
+   ++ThreadTime;         //Number of ~10 msec ticks since reboot
    while(TimeoutHead)
    {
       thread = TimeoutHead;
       diff = ThreadTime - thread->ticksTimeout;
       if(diff < 0)
          break;
+
+      //The thread has timed out waiting for a semaphore
       OS_ThreadTimeoutRemove(thread);
       semaphore = thread->semaphorePending;
       ++semaphore->count;
@@ -644,13 +653,14 @@ void OS_ThreadTick(void *Arg)
       OS_ThreadPriorityRemove(&semaphore->threadHead, thread);
       OS_ThreadPriorityInsert(&ThreadHead, thread);
    }
-   OS_ThreadReschedule(1);
+   OS_ThreadReschedule(1);    //Run highest priority thread
 }
 
 
 
 /***************** Semaphore **************/
 /******************************************/
+//Create a counting semaphore
 OS_Semaphore_t *OS_SemaphoreCreate(const char *name, uint32 count)
 {
    OS_Semaphore_t *semaphore;
@@ -681,6 +691,7 @@ void OS_SemaphoreDelete(OS_Semaphore_t *semaphore)
 
 
 /******************************************/
+//Sleep the number of ticks (~10ms) until the semaphore is acquired
 int OS_SemaphorePend(OS_Semaphore_t *semaphore, int ticks)
 {
    uint32 state, cpuIndex;
@@ -689,35 +700,41 @@ int OS_SemaphorePend(OS_Semaphore_t *semaphore, int ticks)
 
    assert(semaphore);
    assert(InterruptInside[OS_CpuIndex()] == 0);
-   state = OS_CriticalBegin();
+   state = OS_CriticalBegin();    //Disable interrupts
    if(--semaphore->count < 0)
    {
+      //Semaphore not available
       if(ticks == 0)
       {
          ++semaphore->count;
          OS_CriticalEnd(state);
          return -1;
       }
+
+      //Need to sleep until the semaphore is available
       cpuIndex = OS_CpuIndex();
       thread = ThreadCurrent[cpuIndex];
       assert(thread);
       thread->semaphorePending = semaphore;
       thread->ticksTimeout = ticks + OS_ThreadTime();
+
       //FYI: The current thread isn't in the ThreadHead linked list
+      //Place the thread into a sorted linked list of pending threads
       OS_ThreadPriorityInsert(&semaphore->threadHead, thread);
       thread->state = THREAD_PEND;
       if(ticks != OS_WAIT_FOREVER)
-         OS_ThreadTimeoutInsert(thread);
+         OS_ThreadTimeoutInsert(thread); //Check every ~10ms for timeouts
       assert(ThreadHead);
-      OS_ThreadReschedule(0);
-      returnCode = thread->returnCode;
+      OS_ThreadReschedule(0);           //Run highest priority thread
+      returnCode = thread->returnCode;  //Will be -1 if timed out
    }
-   OS_CriticalEnd(state);
+   OS_CriticalEnd(state);               //Re-enable interrupts
    return returnCode;
 }
 
 
 /******************************************/
+//Release a semaphore and possibly wake up a blocked thread
 void OS_SemaphorePost(OS_Semaphore_t *semaphore)
 {
    uint32 state;
@@ -727,6 +744,7 @@ void OS_SemaphorePost(OS_Semaphore_t *semaphore)
    state = OS_CriticalBegin();
    if(++semaphore->count <= 0)
    {
+      //Wake up a thread that was waiting for this semaphore
       thread = semaphore->threadHead;
       OS_ThreadTimeoutRemove(thread);
       OS_ThreadPriorityRemove(&semaphore->threadHead, thread);
@@ -742,6 +760,7 @@ void OS_SemaphorePost(OS_Semaphore_t *semaphore)
 
 /***************** Mutex ******************/
 /******************************************/
+//Create a mutex (a thread aware semaphore)
 OS_Mutex_t *OS_MutexCreate(const char *name)
 {
    OS_Mutex_t *mutex;
@@ -801,6 +820,7 @@ void OS_MutexPost(OS_Mutex_t *mutex)
 
 /***************** MQueue *****************/
 /******************************************/
+//Create a message queue
 OS_MQueue_t *OS_MQueueCreate(const char *name,
                              int messageCount,
                              int messageBytes)
@@ -808,6 +828,7 @@ OS_MQueue_t *OS_MQueueCreate(const char *name,
    OS_MQueue_t *queue;
    int size;
 
+   assert((messageBytes & 3) == 0);
    size = messageBytes / sizeof(uint32);
    queue = (OS_MQueue_t*)OS_HeapMalloc(HEAP_SYSTEM, sizeof(OS_MQueue_t) + 
       messageCount * size * 4);
@@ -835,6 +856,7 @@ void OS_MQueueDelete(OS_MQueue_t *mQueue)
 
 
 /******************************************/
+//Send a message that is messageBytes long (defined during create)
 int OS_MQueueSend(OS_MQueue_t *mQueue, void *message)
 {
    uint32 state, *dst, *src;
@@ -842,43 +864,46 @@ int OS_MQueueSend(OS_MQueue_t *mQueue, void *message)
 
    assert(mQueue);
    src = (uint32*)message;
-   state = OS_CriticalBegin();
+   state = OS_CriticalBegin();           //Disable interrupts
    if(++mQueue->used > mQueue->count)
    {
+      //The message queue is full so discard the message
       --mQueue->used;
       OS_CriticalEnd(state);
       return -1;
    }
    dst = (uint32*)(mQueue + 1) + mQueue->write * mQueue->size;
-   for(i = 0; i < mQueue->size; ++i)
+   for(i = 0; i < mQueue->size; ++i)     //Copy the message into the queue
       dst[i] = src[i];
    if(++mQueue->write >= mQueue->count)
       mQueue->write = 0;
-   OS_CriticalEnd(state);
-   OS_SemaphorePost(mQueue->semaphore);
+   OS_CriticalEnd(state);                //Re-enable interrupts
+   OS_SemaphorePost(mQueue->semaphore);  //Wakeup the receiving thread
    return 0;
 }
 
 
 /******************************************/
+//Receive a message that is messageBytes long (defined during create)
+//Wait at most ~10 msec ticks
 int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks)
 {
    uint32 state, *dst, *src;
    int i, rc;
 
    assert(mQueue);
-   dst = (uint32*)message;
-   rc = OS_SemaphorePend(mQueue->semaphore, ticks);
+   rc = OS_SemaphorePend(mQueue->semaphore, ticks); //Wait for message
    if(rc)
-      return rc;
-   state = OS_CriticalBegin();
+      return rc;                         //Request timed out so rc = -1
+   state = OS_CriticalBegin();           //Disable interrupts
    --mQueue->used;
+   dst = (uint32*)message;
    src = (uint32*)(mQueue + 1) + mQueue->read * mQueue->size;
-   for(i = 0; i < mQueue->size; ++i)
+   for(i = 0; i < mQueue->size; ++i)     //Copy message from the queue
       dst[i] = src[i];
    if(++mQueue->read >= mQueue->count)
       mQueue->read = 0;
-   OS_CriticalEnd(state);
+   OS_CriticalEnd(state);                //Re-enable interrupts
    return 0;
 }
 
@@ -890,6 +915,7 @@ typedef void (*JobFunc_t)();
 static OS_MQueue_t *jobQueue;
 static OS_Thread_t *jobThread;
 
+//This thread waits for jobs that request a function to be called
 static void JobThread(void *arg)
 {
    uint32 message[4];
@@ -905,6 +931,7 @@ static void JobThread(void *arg)
 
 
 /******************************************/
+//Call a function using the job thread so the caller won't be blocked
 void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
 {
    uint32 message[4];
@@ -928,6 +955,7 @@ void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
 
 /***************** Timer ******************/
 /******************************************/
+//This thread polls the list of timers to see if any have timed out
 static void OS_TimerThread(void *arg)
 {
    uint32 timeNow;
@@ -936,7 +964,7 @@ static void OS_TimerThread(void *arg)
    OS_Timer_t *timer;
    (void)arg;
 
-   timeNow = OS_ThreadTime();
+   timeNow = OS_ThreadTime();  //Number of ~10 msec ticks since reboot
    for(;;)
    {
       //Determine how long to sleep
@@ -984,6 +1012,7 @@ static void OS_TimerThread(void *arg)
 
 
 /******************************************/
+//Create a timer that will send a message upon timeout
 OS_Timer_t *OS_TimerCreate(const char *name, OS_MQueue_t *mQueue, uint32 info)
 {
    OS_Timer_t *timer;
@@ -1027,6 +1056,7 @@ void OS_TimerCallback(OS_Timer_t *timer, OS_TimerFuncPtr_t callback)
 
 /******************************************/
 //Must not be called from an ISR
+//In ~10 msec ticks send a message (or callback)
 void OS_TimerStart(OS_Timer_t *timer, uint32 ticks, uint32 ticksRestart)
 {
    OS_Timer_t *node, *prev;
@@ -1068,7 +1098,7 @@ void OS_TimerStart(OS_Timer_t *timer, uint32 ticks, uint32 ticksRestart)
       prev->next = timer;
    OS_SemaphorePost(SemaphoreLock);
    if(check)
-      OS_SemaphorePost(SemaphoreTimer);
+      OS_SemaphorePost(SemaphoreTimer);  //Wakeup OS_TimerThread
 }
 
 
@@ -1175,6 +1205,7 @@ uint32 OS_InterruptMaskClear(uint32 mask)
 
 /**************** Init ********************/
 /******************************************/
+//If there aren't any other ready to run threads then spin here
 static volatile uint32 IdleCount;
 static void OS_IdleThread(void *arg)
 {
@@ -1190,6 +1221,7 @@ static void OS_IdleThread(void *arg)
 
 /******************************************/
 #ifndef DISABLE_IRQ_SIM
+//Simulate the hardware interrupts
 static void OS_IdleSimulateIsr(void *arg)
 {
    uint32 count=0, value;
@@ -1213,6 +1245,7 @@ static void OS_IdleSimulateIsr(void *arg)
 
 /******************************************/
 //Plasma hardware dependent
+//ISR called every ~10 msecs when bit 18 of the counter register toggles
 static void OS_ThreadTickToggle(void *arg)
 {
    uint32 status, mask, state;
@@ -1229,6 +1262,7 @@ static void OS_ThreadTickToggle(void *arg)
 
 
 /******************************************/
+//Initialize the OS by setting up the system heap and the tick interrupt
 void OS_Init(uint32 *heapStorage, uint32 bytes)
 {
    int i;
@@ -1250,13 +1284,14 @@ void OS_Init(uint32 *heapStorage, uint32 bytes)
       OS_ThreadCreate("SimIsr", OS_IdleSimulateIsr, NULL, 1, 0);
    }
 #endif //DISABLE_IRQ_SIM
-   //Plasma hardware dependent
+   //Plasma hardware dependent (register for OS tick interrupt every ~10 msecs)
    OS_InterruptRegister(IRQ_COUNTER18 | IRQ_COUNTER18_NOT, OS_ThreadTickToggle);
    OS_InterruptMaskSet(IRQ_COUNTER18 | IRQ_COUNTER18_NOT);
 }
 
 
 /******************************************/
+//Start thread swapping
 void OS_Start(void)
 {
    ThreadSwapEnabled = 1;
@@ -1290,6 +1325,7 @@ uint32 OS_SpinLock(void)
    cpuIndex = OS_CpuIndex();
    delay = cpuIndex + 8;
    state = OS_AsmInterruptEnable(0);
+   //Spin until only this CPU has the spin lock
    do
    {
       ok = 1;
@@ -1298,7 +1334,7 @@ uint32 OS_SpinLock(void)
          for(i = 0; i < OS_CPU_COUNT; ++i)
          {
             if(i != cpuIndex && SpinLockArray[i])
-               ok = 0;
+               ok = 0;   //Another CPU has the spin lock
          }
          if(ok == 0)
          {
@@ -1340,6 +1376,7 @@ void OS_SpinUnlock(uint32 state)
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
+//Support RTOS inside Linux
 void Sleep(unsigned int value)
 { 
    usleep(value * 1000);
@@ -1391,6 +1428,7 @@ extern void __stdcall Sleep(unsigned long value);
 
 static uint32 Memory[8];
 
+//Simulates device register memory reads
 uint32 MemoryRead(uint32 address)
 {
    Memory[2] |= IRQ_UART_WRITE_AVAILABLE;    //IRQ_STATUS
@@ -1414,6 +1452,7 @@ uint32 MemoryRead(uint32 address)
    return 0;
 }
 
+//Simulates device register memory writes
 void MemoryWrite(uint32 address, uint32 value)
 {
    switch(address)
@@ -1444,7 +1483,7 @@ void OS_AsmInterruptInit(void)
 /**************** Example *****************/
 #ifndef NO_MAIN
 #ifdef WIN32
-static uint8 HeapSpace[1024*512];
+static uint8 HeapSpace[1024*512];  //For simulation on a PC
 #endif
 
 int main(int programEnd, char *argv[])
@@ -1454,9 +1493,9 @@ int main(int programEnd, char *argv[])
 
    UartPrintfCritical("Starting RTOS\n");
 #ifdef WIN32
-   OS_Init((uint32*)HeapSpace, sizeof(HeapSpace));
+   OS_Init((uint32*)HeapSpace, sizeof(HeapSpace));  //For PC simulation
 #else
-   //Remaining space after program in 1MB external RAM
+   //Create heap in remaining space after program in 1MB external RAM
    OS_Init((uint32*)programEnd, 
            RAM_EXTERNAL_BASE + RAM_EXTERNAL_SIZE - programEnd); 
 #endif
