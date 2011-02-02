@@ -237,6 +237,58 @@ end process;
 
 
    -- Option #4
+   -- RAM32X1D: 32 x 1 positive edge write, asynchronous read dual-port 
+   -- distributed RAM for 5-LUT Xilinx FPGAs such as Virtex-5
+   -- From library UNISIM; use UNISIM.vcomponents.all;
+   xilinx_32x1d:
+   if memory_type = "XILINX_32X" generate
+      signal no_connect             : std_logic_vector(63 downto 0);
+   begin
+      reg_loop: for i in 0 to 31 generate
+      begin
+         --Read port 1
+         reg_bit1 : RAM32X1D
+         port map (
+            WCLK  => clk,              -- Port A write clock input
+            WE    => write_enable,     -- Port A write enable input
+            A0    => addr_write(0),    -- Port A address[0] input bit
+            A1    => addr_write(1),    -- Port A address[1] input bit
+            A2    => addr_write(2),    -- Port A address[2] input bit
+            A3    => addr_write(3),    -- Port A address[3] input bit
+            A4    => addr_write(4),    -- Port A address[4] input bit
+            D     => reg_dest_new(i),  -- Port A 1-bit data input
+            DPRA0 => addr_read1(0),    -- Port B address[0] input bit
+            DPRA1 => addr_read1(1),    -- Port B address[1] input bit
+            DPRA2 => addr_read1(2),    -- Port B address[2] input bit
+            DPRA3 => addr_read1(3),    -- Port B address[3] input bit
+            DPRA4 => addr_read1(4),    -- Port B address[4] input bit
+            DPO   => data_out1(i),     -- Port B 1-bit data output
+            SPO   => no_connect(i)     -- Port A 1-bit data output
+         );
+         --Read port 2
+         reg_bit2 : RAM32X1D
+         port map (
+            WCLK  => clk,              -- Port A write clock input
+            WE    => write_enable,     -- Port A write enable input
+            A0    => addr_write(0),    -- Port A address[0] input bit
+            A1    => addr_write(1),    -- Port A address[1] input bit
+            A2    => addr_write(2),    -- Port A address[2] input bit
+            A3    => addr_write(3),    -- Port A address[3] input bit
+            A4    => addr_write(4),    -- Port A address[4] input bit
+            D     => reg_dest_new(i),  -- Port A 1-bit data input
+            DPRA0 => addr_read2(0),    -- Port B address[0] input bit
+            DPRA1 => addr_read2(1),    -- Port B address[1] input bit
+            DPRA2 => addr_read2(2),    -- Port B address[2] input bit
+            DPRA3 => addr_read2(3),    -- Port B address[3] input bit
+            DPRA4 => addr_read2(4),    -- Port B address[4] input bit
+            DPO   => data_out2(i),     -- Port B 1-bit data output
+            SPO   => no_connect(32+i)  -- Port A 1-bit data output
+         );
+      end generate; --reg_loop
+   end generate; --xilinx_32x1d
+
+
+   -- Option #5
    -- Altera LPM_RAM_DP
    altera_mem:
    if memory_type = "ALTERA_LPM" generate

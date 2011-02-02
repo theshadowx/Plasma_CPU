@@ -179,7 +179,29 @@ package mlite_pack is
             WCLK  : in STD_ULOGIC; 
             WE    : in STD_ULOGIC); 
    end component;
-
+	
+   -- For Xilinx Virtex-5
+   component RAM32X1D 
+      -- synthesis translate_off 
+      generic (INIT : bit_vector := X"32"); 
+      -- synthesis translate_on 
+      port (DPO   : out STD_ULOGIC; 
+            SPO   : out STD_ULOGIC; 
+            A0    : in STD_ULOGIC; 
+            A1    : in STD_ULOGIC; 
+            A2    : in STD_ULOGIC; 
+            A3    : in STD_ULOGIC; 
+            A4    : in STD_ULOGIC; 
+            D     : in STD_ULOGIC; 
+            DPRA0 : in STD_ULOGIC; 
+            DPRA1 : in STD_ULOGIC; 
+            DPRA2 : in STD_ULOGIC; 
+            DPRA3 : in STD_ULOGIC; 
+            DPRA4 : in STD_ULOGIC; 
+            WCLK  : in STD_ULOGIC; 
+            WE    : in STD_ULOGIC); 
+   end component; 
+	
    component pc_next
       port(clk         : in std_logic;
            reset_in    : in std_logic;
