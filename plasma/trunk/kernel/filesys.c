@@ -20,12 +20,6 @@
  *        OS_fwrite()              //write file entry into directory
  *        BlockRead()              //flush changes to directory
  *--------------------------------------------------------------------*/
-#ifdef WIN32
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#define  _LIBC
-#endif
 #include "rtos.h"
 
 #define FLASH_SIZE        1024*1024*16
@@ -56,23 +50,25 @@ typedef struct OS_FileEntry_s {
    uint8 valid;
    uint8 mediaType;
    uint16 blockSize;        //Normally BLOCK_SIZE
+   uint8 pad1, pad2;
 } OS_FileEntry_t;
 
 typedef struct OS_Block_s {
    uint32 next;
-   uint8 data[4];
+   uint8 data[BLOCK_SIZE - sizeof(uint32)];
 } OS_Block_t;
 
 struct OS_FILE_s {
    OS_FileEntry_t fileEntry;  //written to directory upon OS_fclose()
    uint8 fileModified;
    uint8 blockModified;
+   uint8 pad1, pad2;
    uint32 blockIndex;         //index of block
    uint32 blockOffset;        //byte offset into block
    uint32 fileOffset;         //byte offset into file
    char fullname[FULL_NAME_SIZE]; //includes full path
    OS_Block_t *block;
-   OS_Block_t *blockLocal;    //local copy for flash or disk file system
+   OS_Block_t blockLocal;     //local copy for flash or disk file system
 };
 
 static OS_FileEntry_t rootFileEntry;
@@ -207,9 +203,7 @@ static void MediaBlockRead(OS_FILE *file, uint32 blockIndex)
 #ifdef INCLUDE_FLASH
    else
    {
-      if(file->blockLocal == NULL)
-         file->blockLocal = (OS_Block_t*)malloc(FLASH_BLOCK_SIZE);
-      file->block = file->blockLocal;
+      file->block = &file->blockLocal;
       FlashRead((uint16*)file->block, blockIndex << FLASH_LN2_SIZE, FLASH_BLOCK_SIZE);
    }
 #endif
@@ -478,6 +472,7 @@ OS_FILE *OS_fopen(char *name, char *mode)
    char filename[FILE_NAME_SIZE];  //Name without directories
    int rc;
 
+   //printf("OS_fopen(%s)\n", name);
    if(rootFileEntry.blockIndex == 0)
    {
       // Mount file system
@@ -499,7 +494,6 @@ OS_FILE *OS_fopen(char *name, char *mode)
       file->fileEntry.isDirectory = 1;
       file->fileEntry.mediaType = FILE_MEDIA_FLASH;
       file->fileEntry.blockSize = FLASH_BLOCK_SIZE;
-      file->blockLocal = file->block;
       file->block = NULL;
       rc = MediaBlockInit();
       if(rc == 1)
@@ -526,8 +520,6 @@ OS_FILE *OS_fopen(char *name, char *mode)
       //Don't over write a directory
       fileEntry.isDirectory = 0;
       rc = FileFindRecursive(&dir, name, &fileEntry, filename);
-      if(dir.blockLocal)
-         free(dir.blockLocal);
       if(rc == 0)
       {
          if(fileEntry.isDirectory)
@@ -539,8 +531,6 @@ OS_FILE *OS_fopen(char *name, char *mode)
       }
    }
    rc = FileFindRecursive(&dir, name, &fileEntry, filename);
-   if(dir.blockLocal)
-      free(dir.blockLocal);
    if(rc == -2 || (rc && mode[0] == 'r'))
    {
       free(file);
@@ -581,12 +571,8 @@ void OS_fclose(OS_FILE *file)
       }
       OS_fwrite(&file->fileEntry, sizeof(OS_FileEntry_t), 1, &dir);
       BlockRead(&dir, BLOCK_EOF);  //flush data
-      if(dir.blockLocal)
-         free(dir.blockLocal);
       OS_MutexPost(mutexFilesys);
    }
-   if(file->blockLocal)
-      free(file->blockLocal);
    free(file);
 }
 
@@ -625,11 +611,7 @@ void OS_fdelete(char *name)
       fileEntry.valid = 0;
       OS_fwrite((char*)&fileEntry, sizeof(OS_FileEntry_t), 1, &dir);
       BlockRead(&dir, BLOCK_EOF);
-      if(file.blockLocal)
-         free(file.blockLocal);
    }
-   if(dir.blockLocal)
-      free(dir.blockLocal);
    OS_MutexPost(mutexFilesys);
 }
 
