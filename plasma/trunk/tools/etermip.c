@@ -11,6 +11,9 @@
  *    and Ethernet packet transfers.  Based on WinPcap example code.
  *    Requires WinPcap library at http://www.winpcap.org/.
  *--------------------------------------------------------------------*/
+#pragma warning(disable:4996) //kbhit(), getch()
+#define _CRT_SECURE_NO_WARNINGS 
+#undef UNICODE
 #include <windows.h>
 #include <stdio.h>
 #include <conio.h>
