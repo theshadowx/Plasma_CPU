@@ -54,6 +54,7 @@ struct OS_Heap_s {
    OS_Semaphore_t *semaphore;
    HeapNode_t *available;
    HeapNode_t base;
+   int count;
    struct OS_Heap_s *alternate;
 };
 //typedef struct OS_Heap_s OS_Heap_t;
@@ -156,6 +157,8 @@ OS_Heap_t *OS_HeapCreate(const char *name, void *memory, uint32 size)
    heap->available->size = (size - sizeof(OS_Heap_t)) / sizeof(HeapNode_t);
    heap->base.next = heap->available;
    heap->base.size = 0;
+   heap->count = 0;
+   heap->alternate = NULL;
    return heap;
 }
 
@@ -196,6 +199,8 @@ void *OS_HeapMalloc(OS_Heap_t *heap, int bytes)
          heap->available = prevp;
          node->next = (HeapNode_t*)heap;
          OS_SemaphorePost(heap->semaphore);
+         ++heap->count;
+         //UartPrintfCritical("OS_HeapMalloc(%d)=0x%x\n", bytes, (int)(node+1));
          return (void*)(node + 1);
       }
       if(node == heap->available)   //Wrapped around free list
@@ -203,6 +208,7 @@ void *OS_HeapMalloc(OS_Heap_t *heap, int bytes)
          OS_SemaphorePost(heap->semaphore);
          if(heap->alternate)
             return OS_HeapMalloc(heap->alternate, bytes);
+         printf("M%d ", heap->count);
          return NULL;
       }
    }
@@ -216,12 +222,14 @@ void OS_HeapFree(void *block)
    OS_Heap_t *heap;
    HeapNode_t *bp, *node;
 
+   //UartPrintfCritical("OS_HeapFree(0x%x)\n", block);
    assert(block);
    bp = (HeapNode_t*)block - 1;   //point to block header
    heap = (OS_Heap_t*)bp->next;
    assert(heap->magic == HEAP_MAGIC);
    if(heap->magic != HEAP_MAGIC)
       return;
+   --heap->count;
    OS_SemaphorePend(heap->semaphore, OS_WAIT_FOREVER);
    for(node = heap->available; !(node < bp && bp < node->next); node = node->next)
    {
@@ -911,7 +919,6 @@ int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks)
 
 /***************** Jobs *******************/
 /******************************************/
-typedef void (*JobFunc_t)();
 static OS_MQueue_t *jobQueue;
 static OS_Thread_t *jobThread;
 
@@ -925,14 +932,14 @@ static void JobThread(void *arg)
    {
       OS_MQueueGet(jobQueue, message, OS_WAIT_FOREVER);
       funcPtr = (JobFunc_t)message[0];
-      funcPtr(message[1], message[2], message[3]);
+      funcPtr((void*)message[1], (void*)message[2], (void*)message[3]);
    }
 }
 
 
 /******************************************/
 //Call a function using the job thread so the caller won't be blocked
-void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
+void OS_Job(JobFunc_t funcPtr, void *arg0, void *arg1, void *arg2)
 {
    uint32 message[4];
    int rc;
@@ -1420,7 +1427,7 @@ int getch(void)
 #undef kbhit
 #undef getch
 #undef putch
-extern int kbhit();
+extern int kbhit(void);
 extern int getch(void);
 extern int putch(int);
 extern void __stdcall Sleep(unsigned long value);

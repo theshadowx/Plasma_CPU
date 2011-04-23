@@ -593,9 +593,6 @@ unsigned long __umodsi3(unsigned long a, unsigned long b)
 #ifdef WIN32
 #undef _LIBC
 #include <math.h>
-#undef printf
-#undef getch
-int printf(const char *, ...);
 struct {
    char *name;
    float low, high;

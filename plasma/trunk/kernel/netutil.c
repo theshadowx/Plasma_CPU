@@ -12,13 +12,6 @@
  *--------------------------------------------------------------------*/
 #undef INCLUDE_FILESYS
 #define INCLUDE_FILESYS
-#ifdef WIN32
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#define _LIBC
-#endif
 #include "rtos.h"
 #include "tcpip.h"
 
@@ -207,7 +200,7 @@ static void FtpCallbackTransfer(IPSocket *socket)
    info->bytes += bytes;
    if(info->bytes == info->size || (bytes == 0 && state > IP_TCP))
    {
-      socket->userFunc(info->buf, info->bytes);
+      socket->userFunc(socket, info->buf, info->bytes);
       free(info);
       socket->userPtr = NULL;
       IPClose(socket);
@@ -270,7 +263,7 @@ static void FtpCallback(IPSocket *socket)
 
 IPSocket *FtpTransfer(uint32 ip, char *user, char *passwd, 
                       char *filename, uint8 *buf, int size, 
-                      int send, void (*callback)(uint8 *data, int size))
+                      int send, IPCallbackPtr callback)
 {
    IPSocket *socket, *socketTransfer;
    FtpInfo *info;
@@ -382,7 +375,7 @@ static void TftpCallback(IPSocket *socket)
       IPWrite(socket, buf, 4);
       if(bytes-4 < 512)
       {
-         socket->userFunc(socket->userPtr, length);
+         socket->userFunc(socket, socket->userPtr, length);
          IPClose(socket);
       }
    }
@@ -390,7 +383,7 @@ static void TftpCallback(IPSocket *socket)
 
 
 IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
-                       void (*callback)(uint8 *data, int bytes))
+                       IPCallbackPtr callback)
 {
    IPSocket *socket;
    uint8 buf[512+4];
@@ -813,11 +806,12 @@ static void PingCallback(IPSocket *socket)
 }
 
 
-static void DnsResultCallback(IPSocket *socket, uint32 ip, void *arg)
+static void DnsResultCallback(IPSocket *socket, uint8 *arg, int ipIn)
 {
    char buf[COMMAND_BUFFER_SIZE];
-   IPSocket *socketTelnet = arg;
+   IPSocket *socketTelnet = (IPSocket*)arg;
    IPSocket *socketPing;
+   uint32 ip=ipIn;
    (void)socket;
 
    sprintf(buf,  "ip=%d.%d.%d.%d\r\n", 
@@ -838,19 +832,21 @@ static void ConsolePing(IPSocket *socket, char *argv[])
    {
       sscanf(argv[1], "%d.%d.%d.%d", &ip0, &ip1, &ip2, &ip3);
       ip0 = (ip0 << 24) | (ip1 << 16) | (ip2 << 8) | ip3;
-      DnsResultCallback(socket, ip0, socket);
+      DnsResultCallback(socket, (uint8*)socket, ip0);
    }
    else
    {
-      IPResolve(argv[1], DnsResultCallback, socket);
+      IPResolve(argv[1], DnsResultCallback, (void*)socket);
       IPPrintf(socket, "Sent DNS request");
    }
 }
 
 
-static void ConsoleTransferDone(uint8 *data, int length)
+static void ConsoleTransferDone(IPSocket *socket, uint8 *data, int length)
 {
    FILE *file;
+   (void)socket;
+
    IPPrintf(socketTelnet, "Transfer Done");
    file = fopen(storageFilename, "w");
    if(file)
@@ -1069,7 +1065,7 @@ static void ConsoleRun(IPSocket *socket, char *argv[])
       }
    }
 
-   socket->userFunc = socket->funcPtr;
+   socket->userFunc = (IPCallbackPtr)socket->funcPtr;
    funcPtr(socket, argv);
 }
 

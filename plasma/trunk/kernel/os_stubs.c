@@ -65,7 +65,7 @@ int OS_MQueueSend(OS_MQueue_t *mQueue, void *message)
 int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks)
 {(void)mQueue;(void)message;(void)ticks; return 0;}
 
-void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2)
+void OS_Job(JobFunc_t funcPtr, void *arg0, void *arg1, void *arg2)
 {funcPtr(arg0, arg1, arg2);}
 
 

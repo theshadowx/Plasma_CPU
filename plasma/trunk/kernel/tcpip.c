@@ -19,17 +19,9 @@
  *                      IPSendFrame()
  *                         FrameInsert()
  *--------------------------------------------------------------------*/
-#ifdef WIN32
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#define _LIBC
-#endif
 #include "rtos.h"
 #define IPPRINTF
 #include "tcpip.h"
-
 
 //ETHER FIELD                 OFFSET   LENGTH   VALUE
 #define ETHERNET_DEST         0        //6
@@ -181,7 +173,7 @@ static IPFrame *FrameResendTail;
 static IPSocket *SocketHead;
 static uint32 Seconds;
 static int DhcpRetrySeconds;
-static IPFuncPtr FrameSendFunc;
+static IPSendFuncPtr FrameSendFunc;
 static OS_MQueue_t *IPMQueue;
 static OS_Thread_t *IPThread;
 int IPVerbose=1;
@@ -332,7 +324,7 @@ static int EthernetVerifyChecksums(const unsigned char *packet, int length)
          memcpy(pseudo+PSEUDO_LENGTH, packet+UDP_LENGTH, 2);
          checksum = IPChecksum(0xffff, pseudo, 12);
          length2 = (packet[UDP_LENGTH] << 8) + packet[UDP_LENGTH+1];
-         checksum = IPChecksum(checksum, packet+UDP_SOURCE_PORT, length);
+         checksum = IPChecksum(checksum, packet+UDP_SOURCE_PORT, length2);
       }
       else if(packet[IP_PROTOCOL] == 0x06)    //TCP
       {
@@ -748,7 +740,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             SocketHead = socketNew;
             OS_MutexPost(IPMutex);
             if(socketNew->funcPtr)
-               OS_Job(socketNew->funcPtr, socketNew, 0, 0);
+               OS_Job((JobFunc_t)socketNew->funcPtr, socketNew, 0, 0);
             return 0;
          }
       }
@@ -851,7 +843,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          TCPSendPacket(socket, frameOut, TCP_DATA);
       }
       if(socket->funcPtr)
-         OS_Job(socket->funcPtr, socket, 0, 0);
+         OS_Job((JobFunc_t)socket->funcPtr, socket, 0, 0);
       return 0;
    }
    if(packet[TCP_HEADER_LENGTH] != 0x50)
@@ -925,7 +917,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
 
    //Notify application
    if(socket->funcPtr && notify)
-      OS_Job(socket->funcPtr, socket, 0, 0);
+      OS_Job((JobFunc_t)socket->funcPtr, socket, 0, 0);
    return rc;
 }
 
@@ -1023,7 +1015,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn, int length)
             if(socket->state == IP_PING && 
                memcmp(packet+IP_SOURCE, socket->headerSend+IP_DEST, 4) == 0)
             {
-               OS_Job(socket->funcPtr, socket, 0, 0);
+               OS_Job((JobFunc_t)socket->funcPtr, socket, 0, 0);
                return 0;
             }
          }
@@ -1079,7 +1071,7 @@ int IPProcessEthernetPacket(IPFrame *frameIn, int length)
          if(IPVerbose)
             printf("U");
          FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
-         OS_Job(socket->funcPtr, socket, 0, 0);
+         OS_Job((JobFunc_t)socket->funcPtr, socket, 0, 0);
          return 1;
       }
    }
@@ -1158,7 +1150,7 @@ uint8 *MyPacketGet(void)
 
 
 //Set FrameSendFunction only if single threaded
-void IPInit(IPFuncPtr frameSendFunction, uint8 macAddress[6], char name[6])
+void IPInit(IPSendFuncPtr frameSendFunction, uint8 macAddress[6], char name[6])
 {
    int i;
    IPFrame *frame;
@@ -1189,7 +1181,7 @@ void IPInit(IPFuncPtr frameSendFunction, uint8 macAddress[6], char name[6])
 
 
 //To open a socket for listen set ipAddress to 0
-IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr)
+IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPSockFuncPtr funcPtr)
 {
    IPSocket *socket;
    uint8 *ptrSend, *ptrRcv;
@@ -1684,7 +1676,7 @@ static void DnsCallback(IPSocket *socket)
             socket->userData = ipAddress;
             if(socket->userFunc)
             {
-               socket->userFunc(socket, ipAddress, socket->userPtr);
+               socket->userFunc(socket, socket->userPtr, ipAddress);
             }
             break;
          }
@@ -1694,7 +1686,7 @@ static void DnsCallback(IPSocket *socket)
 }
 
 
-void IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg)
+void IPResolve(char *name, IPCallbackPtr resolvedFunc, void *arg)
 {
    uint8 buf[200], *ptr;
    int length, i;
@@ -1729,7 +1721,7 @@ void IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg)
    if(length < 60)
       length = 60;
 
-   socket->userFunc = (IPFuncPtr)resolvedFunc;
+   socket->userFunc = resolvedFunc;
    socket->userPtr = arg;
    socket->userData = 0;
    IPWrite(socket, buf, length);

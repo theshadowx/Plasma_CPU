@@ -9,13 +9,6 @@
  * DESCRIPTION:
  *    Plasma TCP/IP HTTP Server
  *--------------------------------------------------------------------*/
-#ifdef WIN32
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#define _LIBC
-#endif
 #include "rtos.h"
 #include "tcpip.h"
 #ifdef WIN32
@@ -149,7 +142,7 @@ void HttpServer(IPSocket *socket)
          {
             if(length == HTML_LENGTH_CALLBACK)
             {
-               IPFuncPtr funcPtr = (IPFuncPtr)(uint32)page;
+               IPCallbackPtr funcPtr = (IPCallbackPtr)(uint32)page;
                funcPtr(socket, buf, bytes);
                return;
             }
@@ -217,7 +210,7 @@ static const PageEntry_t pageEntry[]=
              " <a href='/cgi/myprog'>myprog</a>"},
    {"/other.htm ", 0, "<h2>Other</h2>Other."},
    //{"/binary/plasma.gif ", 1945, PlasmaGif},
-   {"/cgi/myprog", HTML_LENGTH_CALLBACK, (char*)MyProg},
+   {"/cgi/myprog", HTML_LENGTH_CALLBACK, (char*)(int)MyProg},
    {"", HTML_LENGTH_LIST_END, NULL}
 };
 void HtmlInit(int UseFiles)

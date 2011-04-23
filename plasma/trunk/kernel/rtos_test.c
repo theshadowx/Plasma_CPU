@@ -47,7 +47,7 @@ static void TestCLib(void)
    memset(s2, 0, sizeof(s2));
    strncpy(s2, "World wide", 5);
    strcat(s1, s2);
-   strncat(s1, "!\nthing", 14);
+   strncat(s1, "!\nthing", 2);
    printf("%s", s1);
    rc = strcmp(s1, "Hello World!\n");
    assert(rc == 0);
@@ -58,7 +58,7 @@ static void TestCLib(void)
    rc = strncmp(s1, "Hellx", 4);
    assert(rc == 0);
    ptr = strstr(s1, "orl");
-   assert(ptr[0] = 'o');
+   assert(ptr[0] == 'o');
    rc = strlen(s1);
    assert(rc == 13);
    memcpy(s2, s1, rc+1);
@@ -121,6 +121,16 @@ static void TestHeap(void)
       if(ptrs[i])
          OS_HeapFree(ptrs[i]);
    }
+#if 1
+   for(i = 1000; i < 1000000; i += 1000)
+   {
+      ptr = OS_HeapMalloc(NULL, i);
+      if(ptr == NULL)
+         break;
+      OS_HeapFree(ptr);
+   }
+   printf("Malloc max = %d\n", i);
+#endif
    printf("Done.\n");
 }
 
@@ -433,7 +443,6 @@ void TestProcess(void)
 void MMUTest(void);
 void HtmlThread(void *arg);
 void ConsoleInit(void);
-void exit(int);
 uint8 macAddress[] =  {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
 
 

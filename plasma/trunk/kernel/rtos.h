@@ -22,6 +22,12 @@ typedef unsigned char  uint8;
 
 // Memory Access
 #ifdef WIN32
+   #define _CRT_SECURE_NO_WARNINGS 1
+   #pragma warning(disable:4996) //atoi()
+   #include <stdio.h>
+   #include <stdlib.h>
+   #include <assert.h>
+   #define _LIBC
    uint32 MemoryRead(uint32 Address);
    void MemoryWrite(uint32 Address, uint32 Value);
 #else
@@ -30,21 +36,6 @@ typedef unsigned char  uint8;
 #endif
 
 /***************** LibC ******************/
-#if !defined(_LIBC) && !defined(_CTYPE_DEFINED)
-#define printf     UartPrintf
-//#define printf     UartPrintfPoll
-#define scanf      UartScanf
-#ifndef WIN32
-   #define malloc(S)  OS_HeapMalloc(NULL, S)
-   #define free(S)    OS_HeapFree(S)
-#endif
-
-#ifndef NULL
-#define NULL (void*)0
-#endif
-
-#define assert(A) if((A)==0){OS_Assert();UartPrintfCritical("\r\nAssert %s:%d\r\n", __FILE__, __LINE__);}
-
 #define isprint(c) (' '<=(c)&&(c)<='~')
 #define isspace(c) ((c)==' '||(c)=='\t'||(c)=='\n'||(c)=='\r')
 #define isdigit(c) ('0'<=(c)&&(c)<='9')
@@ -58,12 +49,12 @@ typedef unsigned char  uint8;
 #define strcat     strcat2
 #define strncat    strncat2
 #define strcmp     strcmp2
+#define strstr     strstr2
 #define strlen     strlen2
 #define memcpy     memcpy2
 #define memcmp     memcmp2
 #define memset     memset2
 #define abs        abs2
-#define atoi       atoi2
 
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
@@ -78,11 +69,23 @@ void *memmove(void *dst, const void *src, unsigned long bytes);
 int   memcmp(const void *cs, const void *ct, unsigned long bytes);
 void *memset(void *dst, int c, unsigned long bytes);
 int   abs(int n);
+
+#ifndef _LIBC
+#define assert(A) if((A)==0){OS_Assert();UartPrintfCritical("\r\nAssert %s:%d\r\n", __FILE__, __LINE__);}
+#define atoi       atoi2
+#define printf     UartPrintf
+//#define printf     UartPrintfPoll
+#define scanf      UartScanf
+#define malloc(S)  OS_HeapMalloc(NULL, S)
+#define free(S)    OS_HeapFree(S)
+#define NULL       (void*)0
+
 int   rand(void);
 void  srand(unsigned int seed);
 long  strtol(const char *s, char **end, int base);
 int   atoi(const char *s);
 char *itoa(int num, char *dst, int base);
+
 #ifndef NO_ELLIPSIS
    int sprintf(char *s, const char *format, ...);
    int sscanf(const char *s, const char *format, ...);
@@ -120,7 +123,6 @@ char *itoa(int num, char *dst, int base);
    void gmtimeDst(time_t dstTimeIn, time_t dstTimeOut);
    void gmtimeDstSet(time_t *tp, time_t *dstTimeIn, time_t *dstTimeOut);
 #endif
-#define _LIBC
 #endif //_LIBC
 
 /***************** Assembly **************/
@@ -130,7 +132,7 @@ extern void OS_AsmInterruptInit(void);
 extern int setjmp(jmp_buf env);
 extern void longjmp(jmp_buf env, int val);
 extern uint32 OS_AsmMult(uint32 a, uint32 b, unsigned long *hi);
-extern void *OS_Syscall();
+extern void *OS_Syscall(uint32 value);
 
 /***************** Heap ******************/
 #define HEAP_USER    (void*)0
@@ -224,7 +226,8 @@ int OS_MQueueSend(OS_MQueue_t *mQueue, void *message);
 int OS_MQueueGet(OS_MQueue_t *mQueue, void *message, int ticks);
 
 /***************** Job ********************/
-void OS_Job(void (*funcPtr)(), void *arg0, void *arg1, void *arg2);
+typedef void (*JobFunc_t)(void *a0, void *a1, void *a2);
+void OS_Job(JobFunc_t funcPtr, void *arg0, void *arg1, void *arg2);
 
 /***************** Timer ******************/
 typedef struct OS_Timer_s OS_Timer_t;
@@ -272,9 +275,9 @@ void OS_MMUMemoryRegister(uint32 processId,
                           uint32 writable);
 OS_Process_t *OS_MMUProcessCreate(OS_Process_t *process);
 void OS_MMUProcessDelete(OS_Process_t *process);
-void OS_MMUUartPrintf();
-void OS_MMUUartScanf();
-void OS_MMUUartPrintfCritical();
+void OS_MMUUartPrintf(void);
+void OS_MMUUartScanf(void);
+void OS_MMUUartPrintfCritical(void);
 
 /***************** UART ******************/
 typedef uint8* (*PacketGetFunc_t)(void);

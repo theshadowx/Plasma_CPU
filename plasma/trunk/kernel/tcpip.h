@@ -38,7 +38,10 @@ typedef enum IPState_e {
    IP_CLOSED
 } IPState_e;
 
-typedef void (*IPFuncPtr)();
+typedef struct IPSocket IPSocket;
+typedef void (*IPSendFuncPtr)(uint8 *packet, int length);
+typedef void (*IPSockFuncPtr)(IPSocket *sock);
+typedef void (*IPCallbackPtr)(IPSocket *sock, uint8 *buf, int bytes); 
 
 typedef struct IPFrame {
    uint8 packet[PACKET_SIZE];
@@ -48,9 +51,10 @@ typedef struct IPFrame {
    uint16 length;
    short  timeout;
    uint8 state, retryCnt;
+   uint8 pad1, pad2;
 } IPFrame;
 
-typedef struct IPSocket {
+struct IPSocket {
    struct IPSocket *next, *prev;
    IPState_e state;
    uint32 seq;
@@ -71,13 +75,13 @@ typedef struct IPSocket {
    int sendOffset;
    void *fileOut;
    void *fileIn;
-   IPFuncPtr funcPtr;
-   IPFuncPtr userFunc;
+   IPSockFuncPtr funcPtr;
+   IPCallbackPtr userFunc;
    void *userPtr;
    void *userPtr2;
    uint32 userData;
    uint32 userData2;
-} IPSocket;
+};
 
 //ethernet.c
 void EthernetSendPacket(const unsigned char *packet, int length); //Windows
@@ -86,12 +90,12 @@ int EthernetReceive(unsigned char *buffer, int length);
 void EthernetTransmit(unsigned char *buffer, int length);
 
 //tcpip.c
-void IPInit(IPFuncPtr frameSendFunction, uint8 macAddress[6], char name[6]);
+void IPInit(IPSendFuncPtr frameSendFunction, uint8 macAddress[6], char name[6]);
 IPFrame *IPFrameGet(int freeCount);
 int IPProcessEthernetPacket(IPFrame *frameIn, int length);
 void IPTick(void);
 
-IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPFuncPtr funcPtr);
+IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPSockFuncPtr funcPtr);
 void IPWriteFlush(IPSocket *socket);
 uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length);
 uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length);
@@ -101,7 +105,7 @@ void IPPrintf(IPSocket *socket, char *message, int arg0, int arg1, int arg2, int
 #else
 void IPPrintf(IPSocket *socket, char *message, ...);
 #endif
-void IPResolve(char *name, IPFuncPtr resolvedFunc, void *arg);
+void IPResolve(char *name, IPCallbackPtr resolvedFunc, void *arg);
 uint32 IPAddressSelf(void);
 
 //http.c
@@ -121,10 +125,10 @@ void HtmlInit(int UseFiles);
 void FtpdInit(int UseFiles);
 IPSocket *FtpTransfer(uint32 ip, char *user, char *passwd, 
                       char *filename, uint8 *buf, int size, 
-                      int send, void (*callback)(uint8 *data, int size));
+                      int send, IPCallbackPtr callback);
 void TftpdInit(void);
 IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
-                       void (*callback)(uint8 *data, int bytes));
+                       IPCallbackPtr callback);
 void ConsoleInit(void);
 void *IPNameValue(const char *name, void *value);
 
