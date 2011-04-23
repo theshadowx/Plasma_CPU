@@ -54,9 +54,9 @@ char *strncat(char *dst, const char *src, int count)
 {
    int c=1;
    char *dstSave=dst;
-   while(*dst && --count > 0)
+   while(*dst)
       ++dst;
-   while(--count > 0 && c)
+   while(--count >= 0 && c)
       c = *dst++ = *src++;
    *dst = 0;
    return dstSave;
@@ -183,6 +183,7 @@ int abs(int n)
 }
 
 
+#ifndef _LIBC
 static uint32 Rand1=0x1f2bcda3;
 int rand(void)
 {
@@ -402,6 +403,7 @@ int sscanf(const char *s, const char *format,
       }
    }
 }
+#endif //_LIBC
 
 
 #ifdef INCLUDE_DUMP
