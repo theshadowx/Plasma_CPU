@@ -59,8 +59,8 @@ begin  --architecture
 
    u1_plasma: plasma
       generic map (memory_type => memory_type,
-                   ethernet    => '1',
-                   use_cache   => '1',
+                   ethernet    => '0',
+                   use_cache   => '0',
                    log_file    => log_file)
       PORT MAP (
          clk               => clk,
