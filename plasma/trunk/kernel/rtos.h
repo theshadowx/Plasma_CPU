@@ -28,6 +28,7 @@ typedef unsigned char  uint8;
    #include <stdlib.h>
    #include <assert.h>
    #define _LIBC
+   extern void __stdcall Sleep(unsigned long value);
    uint32 MemoryRead(uint32 Address);
    void MemoryWrite(uint32 Address, uint32 Value);
 #else
@@ -35,7 +36,17 @@ typedef unsigned char  uint8;
    #define MemoryWrite(A,V) *(volatile uint32*)(A)=(V)
 #endif
 
+/***************** Simulation Functions ******************/
+void OS_InitSimulation(void);
+
 /***************** LibC ******************/
+#undef isprint
+#undef isspace
+#undef isdigit
+#undef islower
+#undef isupper
+#undef isalpha
+#undef isalnum
 #define isprint(c) (' '<=(c)&&(c)<='~')
 #define isspace(c) ((c)==' '||(c)=='\t'||(c)=='\n'||(c)=='\r')
 #define isdigit(c) ('0'<=(c)&&(c)<='9')
@@ -46,12 +57,15 @@ typedef unsigned char  uint8;
 #undef  min
 #define min(a,b)   ((a)<(b)?(a):(b))
 #define strcpy     strcpy2  //don't use intrinsic functions
+#define strncpy    strncpy2
 #define strcat     strcat2
 #define strncat    strncat2
 #define strcmp     strcmp2
+#define strncmp    strncmp2
 #define strstr     strstr2
 #define strlen     strlen2
 #define memcpy     memcpy2
+#define memmove    memmove2
 #define memcmp     memcmp2
 #define memset     memset2
 #define abs        abs2
@@ -166,7 +180,7 @@ void OS_HeapRegister(void *index, OS_Heap_t *heap);
 
 /***************** Thread *****************/
 #ifdef WIN32
-   #define STACK_SIZE_MINIMUM (1024*4)
+   #define STACK_SIZE_MINIMUM (1024*8)
 #else
    #define STACK_SIZE_MINIMUM (1024*1)
 #endif
@@ -191,7 +205,6 @@ void *OS_ThreadInfoGet(OS_Thread_t *thread, uint32 index);
 uint32 OS_ThreadPriorityGet(OS_Thread_t *thread);
 void OS_ThreadPrioritySet(OS_Thread_t *thread, uint32 priority);
 void OS_ThreadProcessId(OS_Thread_t *thread, uint32 processId, OS_Heap_t *heap);
-void OS_ThreadTick(void *arg);
 void OS_ThreadCpuLock(OS_Thread_t *thread, int cpuIndex);
 
 /***************** Semaphore **************/
@@ -297,14 +310,9 @@ void UartPacketConfig(PacketGetFunc_t packetGetFunc,
                       int packetSize, 
                       OS_MQueue_t *mQueue);
 void UartPacketSend(uint8 *data, int bytes);
-#ifdef WIN32
-#define puts  puts2
-#define getch getch2
-#define kbhit kbhit2
-#endif
-int puts(const char *string);
-int getch(void);
-int kbhit(void);
+int OS_puts(const char *string);
+int OS_getch(void);
+int OS_kbhit(void);
 void LogWrite(int a);
 void LogDump(void);
 void Led(int mask, int value);

@@ -497,7 +497,7 @@ void Led(int mask, int value)
 
 
 /******************************************/
-int puts(const char *string)
+int OS_puts(const char *string)
 {
    uint8 *ptr;
    OS_SemaphorePend(SemaphoreUart, OS_WAIT_FOREVER);
@@ -513,13 +513,13 @@ int puts(const char *string)
 }
 
 
-int getch(void)
+int OS_getch(void)
 {
    return BufferRead(ReadBuffer, 1);
 }
 
 
-int kbhit(void)
+int OS_kbhit(void)
 {
    return ReadBuffer->read != ReadBuffer->write;
 }

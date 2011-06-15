@@ -152,11 +152,12 @@ dlltest:
 # Test the RTOS running on a PC
 testrtos:
 	@$(CC_X86) $(CFLAGS_X86) rtos.c
+	@$(CC_X86) $(CFLAGS_X86) rtos_ex.c
 	@$(CC_X86) $(CFLAGS_X86) libc.c 
 	@$(CC_X86) $(CFLAGS_X86) uart.c
 	@$(CC_X86) $(CFLAGS_X86) rtos_test.c
 	@$(CC_X86) $(CFLAGS_X86) math.c $(ALIASING)
-	@$(CC_X86) $(LFLAGS_X86) -o testrtos.exe rtos.$(OBJ) libc.$(OBJ) uart.$(OBJ) rtos_test.$(OBJ) math.$(OBJ) 
+	@$(CC_X86) $(LFLAGS_X86) -o testrtos.exe rtos.$(OBJ) rtos_ex.$(OBJ) libc.$(OBJ) uart.$(OBJ) rtos_test.$(OBJ) math.$(OBJ) 
 	$(LINUX_PWD)testrtos.exe
 
 # Test the TCP/IP protocol stack running on a PC (requires Windows)

@@ -400,6 +400,38 @@ void TestMath(void)
 #endif
 
 //******************************************************************
+#if OS_CPU_COUNT > 1
+int SpinDone;
+void ThreadSpin(void *arg)
+{
+   int i;
+   int j = 0;
+   unsigned int timeStart = OS_ThreadTime();
+
+   for(i = 0; i < 0x10000000; ++i)
+   {
+      j += i;
+      if(OS_ThreadTime() - timeStart > 400)
+         break;
+      if((i & 0xfffff) == 0)
+         printf("[%d] ", (int)arg);
+   }
+   printf("done[%d].\n", (int)arg);
+   ++SpinDone;
+}
+
+void TestSpin(void)
+{
+   int i;
+   SpinDone = 0;
+   for(i = 0; i < OS_CPU_COUNT; ++i)
+      OS_ThreadCreate("Spin", ThreadSpin, (void*)i, 50+i, 0);
+   for(i = 0; i < 100 && SpinDone < OS_CPU_COUNT; ++i)
+      OS_ThreadSleep(1);
+}
+#endif
+
+//******************************************************************
 #ifndef WIN32
 static void MySyscall(void *arg)
 {
@@ -514,12 +546,15 @@ void MainThread(void *Arg)
       case 'm': TestMathFull(); break;
 #endif
       case 'g': printf("Global=%d\n", ++Global); break;
+#if OS_CPU_COUNT > 1
+      case 's': TestSpin(); break;
+#endif
       default: 
          printf("E");
          display = 0;
          for(i = 0; i < 30; ++i)
          {
-            while(kbhit())
+            while(OS_kbhit())
                ch = UartRead();
             OS_ThreadSleep(1);
          }

@@ -111,9 +111,9 @@ const DllFunc DllFuncList[] = {
    (DllFunc)UartPrintfPoll,
    (DllFunc)UartPrintfCritical,
    (DllFunc)UartScanf,
-   (DllFunc)puts,
-   (DllFunc)getch,
-   (DllFunc)kbhit,
+   (DllFunc)OS_puts,
+   (DllFunc)OS_getch,
+   (DllFunc)OS_kbhit,
    (DllFunc)Led,
    (DllFunc)FP_Sqrt,
    (DllFunc)FP_Cos,
@@ -239,9 +239,9 @@ enum {
    ENUM_UartPrintfPoll,
    ENUM_UartPrintfCritical,
    ENUM_UartScanf,
-   ENUM_puts,
-   ENUM_getch,
-   ENUM_kbhit,
+   ENUM_OS_puts,
+   ENUM_OS_getch,
+   ENUM_OS_kbhit,
    ENUM_Led,
    ENUM_FP_Sqrt,
    ENUM_FP_Cos,
@@ -285,9 +285,6 @@ extern const DllFunc *DllF;
 #undef memset
 #undef abs
 #undef atoi
-#undef puts
-#undef getch
-#undef kbhit
 
 #define strcpy DllF[ENUM_strcpy]
 #define strncpy DllF[ENUM_strncpy]
@@ -360,9 +357,9 @@ extern const DllFunc *DllF;
 #define UartPrintfPoll DllF[ENUM_UartPrintfPoll]
 #define UartPrintfCritical DllF[ENUM_UartPrintfCritical]
 #define UartScanf DllF[ENUM_UartScanf]
-#define puts DllF[ENUM_puts]
-#define getch (int)DllF[ENUM_getch]
-#define kbhit (int)DllF[ENUM_kbhit]
+#define OS_puts DllF[ENUM_OS_puts]
+#define OS_getch (int)DllF[ENUM_OS_getch]
+#define OS_kbhit (int)DllF[ENUM_OS_kbhit]
 #define Led DllF[ENUM_Led]
 #define FP_Sqrt (float)(int)DllF[ENUM_FP_Sqrt]
 #define FP_Cos (float)(int)DllF[ENUM_FP_Cos]
@@ -497,9 +494,9 @@ const char * const DllStrings[] = {
    "UartPrintfPoll",
    "UartPrintfCritical",
    "scanf", //"UartScanf",
-   "puts",
-   "getch",
-   "kbhit",
+   "OS_puts",
+   "OS_getch",
+   "OS_kbhit",
    "Led",
    "FP_Sqrt",
    "FP_Cos",

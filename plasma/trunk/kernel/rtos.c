@@ -12,7 +12,7 @@
  *       Heaps, Threads, Semaphores, Mutexes, Message Queues, and Timers.
  *    This file tries to be hardware independent except for calls to:
  *       MemoryRead() and MemoryWrite() for interrupts.
- *    Partial support for multiple CPUs using symmetric multiprocessing.
+ *    Support for multiple CPUs using symmetric multiprocessing.
  *--------------------------------------------------------------------*/
 #include "plasma.h"
 #include "rtos.h"
@@ -134,12 +134,14 @@ static uint32 ThreadTime;         //Number of ~10ms ticks since reboot
 static void *NeedToFree;          //Closed but not yet freed thread
 static OS_Semaphore_t SemaphoreReserved[SEM_RESERVED_COUNT];
 static OS_Semaphore_t *SemaphoreSleep;
-static OS_Semaphore_t *SemaphoreRelease;
+static OS_Semaphore_t *SemaphoreRelease; //Protects NeedToFree
 static OS_Semaphore_t *SemaphoreLock;
 static OS_Semaphore_t *SemaphoreTimer;
 static OS_Timer_t *TimerHead;     //Linked list of timers sorted by timeout
-static OS_FuncPtr_t Isr[32];
-
+static OS_FuncPtr_t Isr[32];      //Interrupt service routines
+#if defined(WIN32) && OS_CPU_COUNT > 1
+static unsigned int Registration[OS_CPU_COUNT];
+#endif
 
 /***************** Heap *******************/
 /******************************************/
@@ -420,9 +422,14 @@ static void OS_ThreadReschedule(int roundRobin)
          assert(threadCurrent->magic[0] == THREAD_MAGIC); //check stack overflow
          if(threadCurrent->state == THREAD_RUNNING)
             OS_ThreadPriorityInsert(&ThreadHead, threadCurrent);
+         //printf("Pause(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
          rc = setjmp(threadCurrent->env);  //ANSI C call to save registers
          if(rc)
+         {
+            //threadCurrent = ThreadCurrent[OS_CpuIndex()];
+            //printf("Resume(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
             return;  //Returned from longjmp()
+         }
       }
 
       //Remove the new running thread from the ThreadHead linked list
@@ -431,6 +438,10 @@ static void OS_ThreadReschedule(int roundRobin)
       OS_ThreadPriorityRemove(&ThreadHead, threadNext); 
       threadNext->state = THREAD_RUNNING;               
       threadNext->cpuIndex = OS_CpuIndex();
+#if defined(WIN32) && OS_CPU_COUNT > 1
+      //Set the Windows thread that the Plasma thread is running on
+      ((jmp_buf2*)threadNext->env)->extra[0] = Registration[threadNext->cpuIndex];
+#endif
       longjmp(threadNext->env, 1);         //ANSI C call to restore registers
    }
 }
@@ -476,6 +487,9 @@ OS_Thread_t *OS_ThreadCreate(const char *name,
    uint8 *stack;
    jmp_buf2 *env;
    uint32 state;
+#ifdef WIN32
+   int stackFrameSize;
+#endif
 
    OS_SemaphorePend(SemaphoreRelease, OS_WAIT_FOREVER);
    if(NeedToFree)
@@ -521,8 +535,14 @@ OS_Thread_t *OS_ThreadCreate(const char *name,
 
    OS_ThreadRegsInit(thread->env);
    env = (jmp_buf2*)thread->env;
-   env->sp = (uint32)stack + stackSize - 24; //minimum stack frame size
    env->pc = (uint32)OS_ThreadInit;
+#ifndef WIN32
+   env->sp = (uint32)stack + stackSize - 24; //minimum stack frame size
+#else
+   stackFrameSize = env->Ebp - env->sp;
+   env->Ebp = (uint32)stack + stackSize - 24;//stack frame base pointer
+   env->sp =  env->Ebp - stackFrameSize; 
+#endif
 
    //Add thread to linked list of ready to run threads
    state = OS_CriticalBegin();
@@ -637,7 +657,7 @@ void OS_ThreadProcessId(OS_Thread_t *thread, uint32 processId, OS_Heap_t *heap)
 /******************************************/
 //Must be called with interrupts disabled every ~10 msecs
 //Will wake up threads that have timed out waiting on a semaphore
-void OS_ThreadTick(void *Arg)
+static void OS_ThreadTick(void *Arg)
 {
    OS_Thread_t *thread;
    OS_Semaphore_t *semaphore;
@@ -1180,7 +1200,7 @@ void OS_InterruptRegister(uint32 mask, OS_FuncPtr_t funcPtr)
 //Plasma hardware dependent
 uint32 OS_InterruptStatus(void)
 {
-   return MemoryRead(IRQ_STATUS);
+   return MemoryRead(IRQ_STATUS) & MemoryRead(IRQ_MASK);
 }
 
 
@@ -1214,6 +1234,7 @@ uint32 OS_InterruptMaskClear(uint32 mask)
 /******************************************/
 //If there aren't any other ready to run threads then spin here
 static volatile uint32 IdleCount;
+static int SimulateIsr;
 static void OS_IdleThread(void *arg)
 {
    (void)arg;
@@ -1222,46 +1243,48 @@ static void OS_IdleThread(void *arg)
    for(;;)
    {
       ++IdleCount;
-   }
-}
-
-
-/******************************************/
 #ifndef DISABLE_IRQ_SIM
-//Simulate the hardware interrupts
-static void OS_IdleSimulateIsr(void *arg)
-{
-   uint32 count=0, value;
-   (void)arg;
-
-   for(;;)
-   {
-      MemoryRead(IRQ_MASK + 4);       //calls Sleep(10)
-#if WIN32
-      while(OS_InterruptMaskSet(0) & IRQ_UART_WRITE_AVAILABLE)
-         OS_InterruptServiceRoutine(IRQ_UART_WRITE_AVAILABLE, 0);
+      MemoryRead(IRQ_MASK + 4);  //will call Sleep
+      if(SimulateIsr && (int)arg == OS_CPU_COUNT-1)
+      {
+         unsigned int value = IRQ_COUNTER18;   //tick interrupt
+         for(;;)
+         {
+            value |= OS_InterruptStatus();
+            if(value == 0)
+               break;
+            OS_InterruptServiceRoutine(value, 0);
+            value = 0;
+         }
+      }
 #endif
-      value = OS_InterruptMaskSet(0) & 0xf;
-      if(value)
-         OS_InterruptServiceRoutine(value, 0);
-      ++count;
+#if OS_CPU_COUNT > 1
+      if((int)arg < OS_CPU_COUNT - 1)
+      {
+         unsigned int state;
+#ifndef WIN32
+         for(IdleCount = 0; IdleCount < 100000; ++IdleCount) ;
+#endif
+         state = OS_SpinLock();
+         OS_ThreadReschedule(1);
+         OS_SpinUnlock(state);
+      }
+#endif
    }
 }
-#endif //DISABLE_IRQ_SIM
 
 
 /******************************************/
 //Plasma hardware dependent
 //ISR called every ~10 msecs when bit 18 of the counter register toggles
-static void OS_ThreadTickToggle(void *arg)
+static void OS_InterruptTick(void *arg)
 {
-   uint32 status, mask, state;
+   uint32 state, mask;
 
    //Toggle looking for IRQ_COUNTER18 or IRQ_COUNTER18_NOT
    state = OS_SpinLock();
-   status = MemoryRead(IRQ_STATUS) & (IRQ_COUNTER18 | IRQ_COUNTER18_NOT);
-   mask = MemoryRead(IRQ_MASK) | IRQ_COUNTER18 | IRQ_COUNTER18_NOT;
-   mask &= ~status;
+   mask = MemoryRead(IRQ_MASK);
+   mask ^= IRQ_COUNTER18 | IRQ_COUNTER18_NOT;
    MemoryWrite(IRQ_MASK, mask);
    OS_ThreadTick(arg);
    OS_SpinUnlock(state);
@@ -1273,6 +1296,7 @@ static void OS_ThreadTickToggle(void *arg)
 void OS_Init(uint32 *heapStorage, uint32 bytes)
 {
    int i;
+
    if((int)OS_Init > 0x10000000)        //Running from DDR?
       OS_AsmInterruptInit();            //Patch interrupt vector
    OS_InterruptMaskClear(0xffffffff);   //Disable interrupts
@@ -1281,19 +1305,17 @@ void OS_Init(uint32 *heapStorage, uint32 bytes)
    SemaphoreSleep = OS_SemaphoreCreate("Sleep", 0);
    SemaphoreRelease = OS_SemaphoreCreate("Release", 1);
    SemaphoreLock = OS_SemaphoreCreate("Lock", 1);
-   for(i = 0; i < OS_CPU_COUNT; ++i)
-      OS_ThreadCreate("Idle", OS_IdleThread, NULL, 0, 256);
-#ifndef DISABLE_IRQ_SIM
-   if((OS_InterruptStatus() & (IRQ_COUNTER18 | IRQ_COUNTER18_NOT)) == 0)
+   if((MemoryRead(IRQ_STATUS) & (IRQ_COUNTER18 | IRQ_COUNTER18_NOT)) == 0)
    {
-      //Detected that running in simulator so create SimIsr thread
+      //Detected running in simulator
       UartPrintfCritical("SimIsr\n");
-      OS_ThreadCreate("SimIsr", OS_IdleSimulateIsr, NULL, 1, 0);
+      SimulateIsr = 1;
    }
-#endif //DISABLE_IRQ_SIM
+   for(i = 0; i < OS_CPU_COUNT; ++i)
+      OS_ThreadCreate("Idle", OS_IdleThread, (void*)i, i, 256);
    //Plasma hardware dependent (register for OS tick interrupt every ~10 msecs)
-   OS_InterruptRegister(IRQ_COUNTER18 | IRQ_COUNTER18_NOT, OS_ThreadTickToggle);
-   OS_InterruptMaskSet(IRQ_COUNTER18 | IRQ_COUNTER18_NOT);
+   OS_InterruptRegister(IRQ_COUNTER18 | IRQ_COUNTER18_NOT, OS_InterruptTick);
+   OS_InterruptMaskSet(IRQ_COUNTER18);
 }
 
 
@@ -1301,6 +1323,11 @@ void OS_Init(uint32 *heapStorage, uint32 bytes)
 //Start thread swapping
 void OS_Start(void)
 {
+#if defined(WIN32) && OS_CPU_COUNT > 1
+   jmp_buf env;
+   OS_ThreadRegsInit(env);
+   Registration[OS_CpuIndex()] = ((jmp_buf2*)env)->extra[0];
+#endif
    ThreadSwapEnabled = 1;
    (void)OS_SpinLock();
    OS_ThreadReschedule(1);
@@ -1312,179 +1339,6 @@ void OS_Start(void)
 void OS_Assert(void)
 {
 }
-
-
-#if OS_CPU_COUNT > 1
-static uint8 SpinLockArray[OS_CPU_COUNT];
-/******************************************/
-uint32 OS_CpuIndex(void)
-{
-   return 0; //0 to OS_CPU_COUNT-1
-}
-
-
-/******************************************/
-//Symmetric Multiprocessing Spin Lock Mutex
-uint32 OS_SpinLock(void)
-{
-   uint32 state, cpuIndex, i, j, ok, delay;
-
-   cpuIndex = OS_CpuIndex();
-   delay = cpuIndex + 8;
-   state = OS_AsmInterruptEnable(0);
-   //Spin until only this CPU has the spin lock
-   do
-   {
-      ok = 1;
-      if(++SpinLockArray[cpuIndex] == 1)
-      {
-         for(i = 0; i < OS_CPU_COUNT; ++i)
-         {
-            if(i != cpuIndex && SpinLockArray[i])
-               ok = 0;   //Another CPU has the spin lock
-         }
-         if(ok == 0)
-         {
-            SpinLockArray[cpuIndex] = 0;
-            for(j = 0; j < delay; ++j)  //wait a bit
-               ++i;
-            if(delay < 128)
-               delay <<= 1;
-         }
-      }
-   } while(ok == 0);
-   return state;
-}
-
-
-/******************************************/
-void OS_SpinUnlock(uint32 state)
-{
-   uint32 cpuIndex;
-   cpuIndex = OS_CpuIndex();
-   if(--SpinLockArray[cpuIndex] == 0)
-      OS_AsmInterruptEnable(state);
-
-   assert(SpinLockArray[cpuIndex] < 10);
-}
-#endif  //OS_CPU_COUNT > 1
-
-
-/************** WIN32/Linux Support *************/
-#ifdef WIN32
-#ifdef LINUX
-#define putch putchar
-#undef _LIBC
-#undef kbhit
-#undef getch
-#define UartPrintf UartPrintf2
-#define UartScanf UartScanf2
-#include <stdio.h>
-#include <stdlib.h>
-#include <termios.h>
-#include <unistd.h>
-//Support RTOS inside Linux
-void Sleep(unsigned int value)
-{ 
-   usleep(value * 1000);
-}
-
-int kbhit(void)
-{
-   struct termios oldt, newt;
-   struct timeval tv;
-   fd_set read_fd;
-
-   tcgetattr(STDIN_FILENO, &oldt);
-   newt = oldt;
-   newt.c_lflag &= ~(ICANON | ECHO);
-   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-   tv.tv_sec=0;
-   tv.tv_usec=0;
-   FD_ZERO(&read_fd);
-   FD_SET(0,&read_fd);
-   if(select(1, &read_fd, NULL, NULL, &tv) == -1)
-      return 0;
-   if(FD_ISSET(0,&read_fd))
-      return 1;
-   return 0;
-}
-
-int getch(void)
-{
-   struct termios oldt, newt;
-   int ch;
-
-   tcgetattr(STDIN_FILENO, &oldt);
-   newt = oldt;
-   newt.c_lflag &= ~(ICANON | ECHO);
-   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-   ch = getchar();
-   return ch;
-}
-#else
-//Support RTOS inside Windows
-#undef kbhit
-#undef getch
-#undef putch
-extern int kbhit(void);
-extern int getch(void);
-extern int putch(int);
-extern void __stdcall Sleep(unsigned long value);
-#endif
-
-static uint32 Memory[8];
-
-//Simulates device register memory reads
-uint32 MemoryRead(uint32 address)
-{
-   Memory[2] |= IRQ_UART_WRITE_AVAILABLE;    //IRQ_STATUS
-   switch(address)
-   {
-   case UART_READ: 
-      if(kbhit())
-         Memory[0] = getch();                //UART_READ
-      Memory[2] &= ~IRQ_UART_READ_AVAILABLE; //clear bit
-      return Memory[0];
-   case IRQ_MASK: 
-      return Memory[1];                      //IRQ_MASK
-   case IRQ_MASK + 4:
-      Sleep(10);
-      return 0;
-   case IRQ_STATUS: 
-      if(kbhit())
-         Memory[2] |= IRQ_UART_READ_AVAILABLE;
-      return Memory[2];
-   }
-   return 0;
-}
-
-//Simulates device register memory writes
-void MemoryWrite(uint32 address, uint32 value)
-{
-   switch(address)
-   {
-   case UART_WRITE: 
-      putch(value); 
-      break;
-   case IRQ_MASK:   
-      Memory[1] = value; 
-      break;
-   case IRQ_STATUS: 
-      Memory[2] = value; 
-      break;
-   }
-}
-
-uint32 OS_AsmInterruptEnable(uint32 enableInterrupt)
-{
-   return enableInterrupt;
-}
-
-void OS_AsmInterruptInit(void)
-{
-}
-#endif  //WIN32
 
 
 /**************** Example *****************/
@@ -1508,6 +1362,9 @@ int main(int programEnd, char *argv[])
 #endif
    UartInit();
    OS_ThreadCreate("Main", MainThread, NULL, 100, 4000);
+#if defined(WIN32) && OS_CPU_COUNT > 1
+   OS_InitSimulation();
+#endif
    OS_Start();
    return 0;
 }

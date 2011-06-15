@@ -51,6 +51,10 @@ OS_Mutex_t *OS_MutexCreate(const char *name) {(void)name; return NULL; }
 void OS_MutexDelete(OS_Mutex_t *semaphore)   {(void)semaphore;}
 void OS_MutexPend(OS_Mutex_t *semaphore)     {(void)semaphore;}
 void OS_MutexPost(OS_Mutex_t *semaphore)     {(void)semaphore;}
+#if OS_CPU_COUNT > 1
+   uint32 OS_SpinLock(void)                     {return 0;}
+   void OS_SpinUnlock(uint32 state)             {(void)state;}
+#endif
 
 OS_MQueue_t *OS_MQueueCreate(const char *name,
                              int messageCount,
