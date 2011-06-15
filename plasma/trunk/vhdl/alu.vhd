@@ -34,7 +34,7 @@ begin
 
    GENERIC_ALU: if alu_type = "DEFAULT" generate
       c_alu <= sum(31 downto 0) when alu_function=ALU_ADD or
-		                               alu_function=ALU_SUBTRACT else
+                                alu_function=ALU_SUBTRACT else
                ZERO(31 downto 1) & less_than when alu_function=ALU_LESS_THAN or 
                                 alu_function=ALU_LESS_THAN_SIGNED else
                a_in or  b_in    when alu_function=ALU_OR else
@@ -44,7 +44,7 @@ begin
                ZERO;
    end generate;
 
-   AREA_OPTIMIZED_ALU: if alu_type/="DEFAULT" generate
+   AREA_OPTIMIZED_ALU: if alu_type /= "DEFAULT" generate
       c_alu <= sum(31 downto 0) when alu_function=ALU_ADD or 
 		                          alu_function=ALU_SUBTRACT else (others => 'Z');
       c_alu <= ZERO(31 downto 1) & less_than when alu_function=ALU_LESS_THAN or 
