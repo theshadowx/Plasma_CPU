@@ -123,6 +123,7 @@ plasma/trunk/kernel/netutil.c -text
 plasma/trunk/kernel/os_stubs.c -text
 plasma/trunk/kernel/rtos.c -text
 plasma/trunk/kernel/rtos.h -text
+plasma/trunk/kernel/rtos_ex.c -text
 plasma/trunk/kernel/rtos_test.c -text
 plasma/trunk/kernel/tcpip.c -text
 plasma/trunk/kernel/tcpip.h -text
