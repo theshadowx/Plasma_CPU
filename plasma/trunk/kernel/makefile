@@ -21,7 +21,7 @@ DUMP_MIPS = $(BIN_MIPS)\objdump
 CONVERT_BIN = $(TOOLS_DIR)convert_bin.exe
 OBJ = obj
 CFLAGS_X86 = /c /DWIN32
-LFLAGS_X86 =
+LFLAGS_X86 = /MT
 
 else
 
