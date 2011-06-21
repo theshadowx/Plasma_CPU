@@ -41,6 +41,10 @@ void FlashErase(uint32 byteOffset)
 
 
 //Stub out RTOS functions
+#undef malloc
+#undef free
+void *OS_HeapMalloc(OS_Heap_t *heap, int bytes) {(void)heap; return malloc(bytes);}
+void OS_HeapFree(void *block)                {free(block);}
 void UartPrintfCritical(const char *format, ...) {(void)format;}
 uint32 OS_AsmInterruptEnable(uint32 state)   {(void)state; return 0;}
 void OS_Assert(void)                         {}

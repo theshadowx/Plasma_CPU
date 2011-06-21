@@ -9,6 +9,9 @@
  * DESCRIPTION:
  *    Test Plasma Real Time Operating System
  *--------------------------------------------------------------------*/
+#ifdef WIN32
+#include <stdlib.h>
+#endif
 #include "plasma.h"
 #include "rtos.h"
 #include "tcpip.h"
@@ -144,7 +147,7 @@ static void MyThreadMain(void *arg)
    priority = OS_ThreadPriorityGet(thread);
    OS_ThreadSleep(10);
    printf("Arg=%d thread=0x%x info=0x%x priority=%d\n", 
-      (uint32)arg, thread, OS_ThreadInfoGet(thread, 0), priority);
+      (int)arg, (int)thread, (int)OS_ThreadInfoGet(thread, 0), priority);
    OS_ThreadExit();
 }
 
@@ -245,6 +248,13 @@ static void TestMutexThread(void *arg)
    OS_ThreadExit();
 }
 
+//Test priority inversion
+static void TestMutexThread2(void *arg)
+{
+   (void)arg;
+   printf("Priority inversion test thread\n");
+}
+
 static void TestMutex(void)
 {
    TestInfo_t info;
@@ -253,21 +263,25 @@ static void TestMutex(void)
    OS_MutexPend(info.MyMutex);
    OS_MutexPend(info.MyMutex);
    OS_MutexPend(info.MyMutex);
+   printf("Acquired mutexes\n");
 
-   OS_ThreadSleep(100);
+   OS_ThreadCreate("TestMutex", TestMutexThread, &info, 150, 0);
+   OS_ThreadCreate("TestMutex2", TestMutexThread2, &info, 110, 0);
 
-   OS_ThreadCreate("TestMutex", TestMutexThread, &info, 50, 0);
-
+   printf("Posting mutexes at priority %d\n", 
+      OS_ThreadPriorityGet(OS_ThreadSelf()));
+   OS_MutexPost(info.MyMutex);
+   OS_MutexPost(info.MyMutex);
+   OS_MutexPost(info.MyMutex);
+   printf("Thread priority %d\n", OS_ThreadPriorityGet(OS_ThreadSelf()));
    OS_ThreadSleep(50);
-   OS_MutexPost(info.MyMutex);
-   OS_MutexPost(info.MyMutex);
-   OS_MutexPost(info.MyMutex);
 
    printf("Try get mutex\n");
    OS_MutexPend(info.MyMutex);
-   printf("Gotit\n");
+   printf("Got it\n");
 
    OS_MutexDelete(info.MyMutex);
+   OS_ThreadSleep(50);
    printf("Done.\n");
 }
 
@@ -406,11 +420,17 @@ void ThreadSpin(void *arg)
 {
    int i;
    int j = 0;
+   unsigned int state;
    unsigned int timeStart = OS_ThreadTime();
 
    for(i = 0; i < 0x10000000; ++i)
    {
-      j += i;
+      if((i & 0xff) == 0)
+      {
+         state = OS_CriticalBegin();
+         j += i;
+         OS_CriticalEnd(state);
+      }
       if(OS_ThreadTime() - timeStart > 400)
          break;
       if((i & 0xfffff) == 0)
@@ -562,5 +582,4 @@ void MainThread(void *Arg)
       }
    }
 }
-
 

@@ -12,7 +12,6 @@
 #define NO_ELLIPSIS
 #include "rtos.h"
 
-
 char *strcpy(char *dst, const char *src)
 {
    char *dstSave=dst;
@@ -183,7 +182,6 @@ int abs(int n)
 }
 
 
-#ifndef _LIBC
 static uint32 Rand1=0x1f2bcda3;
 int rand(void)
 {
@@ -403,7 +401,6 @@ int sscanf(const char *s, const char *format,
       }
    }
 }
-#endif //_LIBC
 
 
 #ifdef INCLUDE_DUMP

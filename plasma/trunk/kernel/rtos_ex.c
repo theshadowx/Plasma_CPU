@@ -15,19 +15,19 @@
 
 /************** WIN32 Simulation Support *************/
 #ifdef WIN32
-#undef kbhit
-#undef getch
-#undef putch
-extern int kbhit(void);
-extern int getch(void);
-extern int putch(int);
+#include <conio.h>
+#define kbhit _kbhit
+#define getch _getch
+#define putch _putch
+extern void __stdcall Sleep(unsigned long value);
+
+#if OS_CPU_COUNT > 1
 unsigned int __stdcall GetCurrentThreadId(void);
 typedef void (*LPTHREAD_START_ROUTINE)(void *lpThreadParameter);
 void * __stdcall CreateThread(void *lpsa, unsigned int dwStackSize,
    LPTHREAD_START_ROUTINE pfnThreadProc, void *pvParam, 
    unsigned int dwCreationFlags, unsigned int *pdwThreadId);
-
-#if OS_CPU_COUNT > 1
+   
 static unsigned int ThreadId[OS_CPU_COUNT];
 
 //PC simulation of multiple CPUs
@@ -39,7 +39,7 @@ void OS_InitSimulation(void)
    for(i = 1; i < OS_CPU_COUNT; ++i)
       CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)OS_Start, NULL, 0, &ThreadId[i]);
 }
-#endif
+#endif  //OS_CPU_COUNT > 1
 
 static uint32 Memory[8];
 
@@ -109,7 +109,8 @@ uint32 OS_CpuIndex(void)
          return i;
    }
 #endif
-   return 0; //0 to OS_CPU_COUNT-1; Read a CPU specific GPIO value
+   //return MemoryRead(GPIO_CPU_INDEX);
+   return 0; //0 to OS_CPU_COUNT-1
 }
 
 
@@ -122,14 +123,15 @@ uint32 OS_SpinLock(void)
 
    cpuIndex = OS_CpuIndex();
    state = OS_AsmInterruptEnable(0);    //disable interrupts
-   if(++SpinLockArray[cpuIndex] > 1)    //check for nesting
-      return state;
+   if(SpinLockArray[cpuIndex])
+      return (uint32)-1;                //already locked
    delay = (4 + cpuIndex) << 2;
 
    //Spin until only this CPU has the spin lock
    for(;;)
    {
       ok = 1;
+      SpinLockArray[cpuIndex] = 1;
       for(i = 0; i < OS_CPU_COUNT; ++i)
       {
          if(i != cpuIndex && SpinLockArray[i])
@@ -145,7 +147,6 @@ uint32 OS_SpinLock(void)
       if(delay < 128)
          delay <<= 1;
       state = OS_AsmInterruptEnable(0); //disable interrupts
-      SpinLockArray[cpuIndex] = 1;
    }
 }
 
@@ -154,11 +155,10 @@ uint32 OS_SpinLock(void)
 void OS_SpinUnlock(uint32 state)
 {
    uint32 cpuIndex;
+   if(state == (uint32)-1)
+      return;                           //nested lock call
    cpuIndex = OS_CpuIndex();
-   if(--SpinLockArray[cpuIndex] == 0)
-      OS_AsmInterruptEnable(state);
-
-   assert(SpinLockArray[cpuIndex] < 10);
+   SpinLockArray[cpuIndex] = 0;
 }
 #endif  //OS_CPU_COUNT > 1
 

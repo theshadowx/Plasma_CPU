@@ -8,6 +8,8 @@
  *    Software 'as is' without warranty.  Author liable for nothing.
  * DESCRIPTION:
  *    Plasma Real Time Operating System
+ *    Fully pre-emptive RTOS with support for:
+ *       Heaps, Threads, Semaphores, Mutexes, Message Queues, and Timers.
  *--------------------------------------------------------------------*/
 #ifndef __RTOS_H__
 #define __RTOS_H__
@@ -21,23 +23,20 @@ typedef unsigned short uint16;
 typedef unsigned char  uint8;
 
 // Memory Access
+#ifdef __TINYC__
+   #define WIN32
+#endif
 #ifdef WIN32
    #define _CRT_SECURE_NO_WARNINGS 1
-   #pragma warning(disable:4996) //atoi()
    #include <stdio.h>
-   #include <stdlib.h>
    #include <assert.h>
    #define _LIBC
-   extern void __stdcall Sleep(unsigned long value);
    uint32 MemoryRead(uint32 Address);
    void MemoryWrite(uint32 Address, uint32 Value);
 #else
    #define MemoryRead(A) (*(volatile uint32*)(A))
    #define MemoryWrite(A,V) *(volatile uint32*)(A)=(V)
 #endif
-
-/***************** Simulation Functions ******************/
-void OS_InitSimulation(void);
 
 /***************** LibC ******************/
 #undef isprint
@@ -47,6 +46,7 @@ void OS_InitSimulation(void);
 #undef isupper
 #undef isalpha
 #undef isalnum
+#undef min
 #define isprint(c) (' '<=(c)&&(c)<='~')
 #define isspace(c) ((c)==' '||(c)=='\t'||(c)=='\n'||(c)=='\r')
 #define isdigit(c) ('0'<=(c)&&(c)<='9')
@@ -54,7 +54,6 @@ void OS_InitSimulation(void);
 #define isupper(c) ('A'<=(c)&&(c)<='Z')
 #define isalpha(c) (islower(c)||isupper(c))
 #define isalnum(c) (isalpha(c)||isdigit(c))
-#undef  min
 #define min(a,b)   ((a)<(b)?(a):(b))
 #define strcpy     strcpy2  //don't use intrinsic functions
 #define strncpy    strncpy2
@@ -69,6 +68,15 @@ void OS_InitSimulation(void);
 #define memcmp     memcmp2
 #define memset     memset2
 #define abs        abs2
+#define atoi       atoi2
+#define rand       rand2
+#define srand      srand2
+#define strtol     strtol2
+#define itoa       itoa2
+#define sprintf    sprintf2
+#define sscanf     sscanf2
+#define malloc(S)  OS_HeapMalloc(NULL, S)
+#define free(S)    OS_HeapFree(S)
 
 char *strcpy(char *dst, const char *src);
 char *strncpy(char *dst, const char *src, int count);
@@ -83,27 +91,25 @@ void *memmove(void *dst, const void *src, unsigned long bytes);
 int   memcmp(const void *cs, const void *ct, unsigned long bytes);
 void *memset(void *dst, int c, unsigned long bytes);
 int   abs(int n);
-
-#ifndef _LIBC
-#define assert(A) if((A)==0){OS_Assert();UartPrintfCritical("\r\nAssert %s:%d\r\n", __FILE__, __LINE__);}
-#define atoi       atoi2
-#define printf     UartPrintf
-//#define printf     UartPrintfPoll
-#define scanf      UartScanf
-#define malloc(S)  OS_HeapMalloc(NULL, S)
-#define free(S)    OS_HeapFree(S)
-#define NULL       (void*)0
-
+int   atoi(const char *s);
 int   rand(void);
 void  srand(unsigned int seed);
 long  strtol(const char *s, char **end, int base);
-int   atoi(const char *s);
 char *itoa(int num, char *dst, int base);
 
 #ifndef NO_ELLIPSIS
    int sprintf(char *s, const char *format, ...);
    int sscanf(const char *s, const char *format, ...);
 #endif
+
+#ifndef _LIBC
+   #define assert(A) if((A)==0){OS_Assert();UartPrintfCritical("\r\nAssert %s:%d\r\n", __FILE__, __LINE__);}
+   #define printf     UartPrintf
+   //#define printf     UartPrintfPoll
+   #define scanf      UartScanf
+   #define NULL       (void*)0
+#endif //_LIBC
+
 #ifdef INCLUDE_DUMP
    void dump(const unsigned char *data, int length);
 #endif
@@ -137,7 +143,6 @@ char *itoa(int num, char *dst, int base);
    void gmtimeDst(time_t dstTimeIn, time_t dstTimeOut);
    void gmtimeDstSet(time_t *tp, time_t *dstTimeIn, time_t *dstTimeOut);
 #endif
-#endif //_LIBC
 
 /***************** Assembly **************/
 typedef uint32 jmp_buf[20];
@@ -149,11 +154,11 @@ extern uint32 OS_AsmMult(uint32 a, uint32 b, unsigned long *hi);
 extern void *OS_Syscall(uint32 value);
 
 /***************** Heap ******************/
-#define HEAP_USER    (void*)0
-#define HEAP_SYSTEM  (void*)1
-#define HEAP_SMALL   (void*)2
-#define HEAP_UI      (void*)3
 typedef struct OS_Heap_s OS_Heap_t;
+#define HEAP_USER    (OS_Heap_t*)0
+#define HEAP_SYSTEM  (OS_Heap_t*)1
+#define HEAP_SMALL   (OS_Heap_t*)2
+#define HEAP_UI      (OS_Heap_t*)3
 OS_Heap_t *OS_HeapCreate(const char *name, void *memory, uint32 size);
 void OS_HeapDestroy(OS_Heap_t *heap);
 void *OS_HeapMalloc(OS_Heap_t *heap, int bytes);
@@ -261,36 +266,10 @@ uint32 OS_InterruptMaskClear(uint32 mask);
 
 /***************** Init ******************/
 void OS_Init(uint32 *heapStorage, uint32 bytes);
+void OS_InitSimulation(void);
 void OS_Start(void);
 void OS_Assert(void);
-void OS_DebuggerInit(void);
 void MainThread(void *Arg);
-
-/***************** MMU ******************/
-typedef struct {
-   const char *name;
-   OS_FuncPtr_t funcPtr;
-   void *arg;
-   uint32 priority;
-   uint32 stackSize;
-   uint32 heapSize;
-   uint32 processId;
-   OS_Semaphore_t *semaphoreDone;
-   uint8 *memory;       //private
-   OS_Heap_t *heap;     //private
-   OS_Thread_t *thread; //private
-} OS_Process_t;
-void OS_MMUInit(void);
-void OS_MMUMemoryRegister(uint32 processId,
-                          uint32 virtualAddress,
-                          uint32 physicalAddress,
-                          uint32 size,
-                          uint32 writable);
-OS_Process_t *OS_MMUProcessCreate(OS_Process_t *process);
-void OS_MMUProcessDelete(OS_Process_t *process);
-void OS_MMUUartPrintf(void);
-void OS_MMUUartScanf(void);
-void OS_MMUUartPrintfCritical(void);
 
 /***************** UART ******************/
 typedef uint8* (*PacketGetFunc_t)(void);

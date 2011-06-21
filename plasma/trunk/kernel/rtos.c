@@ -23,6 +23,8 @@
 #define INFO_COUNT 4
 #define HEAP_COUNT 8
 
+#define PRINTF_DEBUG(STRING, A, B)
+//#define PRINTF_DEBUG(STRING, A, B) printf(STRING, A, B)
 
 /*************** Structures ***************/
 #ifdef WIN32
@@ -98,6 +100,7 @@ struct OS_Semaphore_s {
 struct OS_Mutex_s {
    OS_Semaphore_t *semaphore;
    OS_Thread_t *thread;
+   uint32 priorityRestore;
    int count;
 }; 
 //typedef struct OS_Mutex_s OS_Mutex_t;
@@ -422,12 +425,12 @@ static void OS_ThreadReschedule(int roundRobin)
          assert(threadCurrent->magic[0] == THREAD_MAGIC); //check stack overflow
          if(threadCurrent->state == THREAD_RUNNING)
             OS_ThreadPriorityInsert(&ThreadHead, threadCurrent);
-         //printf("Pause(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
+         PRINTF_DEBUG("Pause(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
          rc = setjmp(threadCurrent->env);  //ANSI C call to save registers
          if(rc)
          {
-            //threadCurrent = ThreadCurrent[OS_CpuIndex()];
-            //printf("Resume(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
+            PRINTF_DEBUG("Resume(%d,%s) ", OS_CpuIndex(), 
+               ThreadCurrent[OS_CpuIndex()]->name);
             return;  //Returned from longjmp()
          }
       }
@@ -462,6 +465,7 @@ static void OS_ThreadInit(void *arg)
    uint32 cpuIndex = OS_CpuIndex();
    (void)arg;
 
+   PRINTF_DEBUG("Starting(%d,%s) ", cpuIndex, OS_ThreadSelf()->name);
    OS_CriticalEnd(1);
    ThreadCurrent[cpuIndex]->funcPtr(ThreadCurrent[cpuIndex]->arg);
    OS_ThreadExit();
@@ -726,6 +730,7 @@ int OS_SemaphorePend(OS_Semaphore_t *semaphore, int ticks)
    OS_Thread_t *thread;
    int returnCode=0;
 
+   PRINTF_DEBUG("SemPend(%d,%s) ", OS_CpuIndex(), semaphore->name);
    assert(semaphore);
    assert(InterruptInside[OS_CpuIndex()] == 0);
    state = OS_CriticalBegin();    //Disable interrupts
@@ -768,6 +773,7 @@ void OS_SemaphorePost(OS_Semaphore_t *semaphore)
    uint32 state;
    OS_Thread_t *thread;
 
+   PRINTF_DEBUG("SemPost(%d,%s) ", OS_CpuIndex(), semaphore->name);
    assert(semaphore);
    state = OS_CriticalBegin();
    if(++semaphore->count <= 0)
@@ -817,6 +823,7 @@ void OS_MutexDelete(OS_Mutex_t *mutex)
 void OS_MutexPend(OS_Mutex_t *mutex)
 {
    OS_Thread_t *thread;
+   uint32 state;
 
    assert(mutex);
    thread = OS_ThreadSelf();
@@ -825,25 +832,40 @@ void OS_MutexPend(OS_Mutex_t *mutex)
       ++mutex->count;
       return;
    }
+
+   state = OS_CriticalBegin();
+   //Priority inheritance to prevent priority inversion
+   if(mutex->thread && mutex->thread->priority < thread->priority)
+      OS_ThreadPrioritySet(mutex->thread, thread->priority);
+
    OS_SemaphorePend(mutex->semaphore, OS_WAIT_FOREVER);
+   mutex->priorityRestore = thread->priority;
    mutex->thread = thread;
    mutex->count = 1;
+   OS_CriticalEnd(state);
 }
 
 
 /******************************************/
 void OS_MutexPost(OS_Mutex_t *mutex)
 {
+   OS_Thread_t *thread = OS_ThreadSelf();
+   uint32 state, priorityRestore;
+
    assert(mutex);
-   assert(mutex->thread == OS_ThreadSelf());
+   assert(mutex->thread == thread);
    assert(mutex->count > 0);
    if(--mutex->count <= 0)
    {
+      state = OS_CriticalBegin();
       mutex->thread = NULL;
+      priorityRestore = mutex->priorityRestore;
       OS_SemaphorePost(mutex->semaphore);
+      if(priorityRestore < thread->priority)
+         OS_ThreadPrioritySet(thread, priorityRestore);
+      OS_CriticalEnd(state);
    }
 }
-
 
 
 /***************** MQueue *****************/
@@ -1233,10 +1255,10 @@ uint32 OS_InterruptMaskClear(uint32 mask)
 /**************** Init ********************/
 /******************************************/
 //If there aren't any other ready to run threads then spin here
-static volatile uint32 IdleCount;
 static int SimulateIsr;
 static void OS_IdleThread(void *arg)
 {
+   uint32 IdleCount=0;
    (void)arg;
 
    //Don't block in the idle thread!
@@ -1263,7 +1285,7 @@ static void OS_IdleThread(void *arg)
       {
          unsigned int state;
 #ifndef WIN32
-         for(IdleCount = 0; IdleCount < 100000; ++IdleCount) ;
+         for(IdleCount = 0; IdleCount < 25000; ++IdleCount) ;
 #endif
          state = OS_SpinLock();
          OS_ThreadReschedule(1);
@@ -1300,7 +1322,7 @@ void OS_Init(uint32 *heapStorage, uint32 bytes)
    if((int)OS_Init > 0x10000000)        //Running from DDR?
       OS_AsmInterruptInit();            //Patch interrupt vector
    OS_InterruptMaskClear(0xffffffff);   //Disable interrupts
-   HeapArray[0] = OS_HeapCreate("Default", heapStorage, bytes);
+   HeapArray[0] = OS_HeapCreate("Heap", heapStorage, bytes);
    HeapArray[1] = HeapArray[0];
    SemaphoreSleep = OS_SemaphoreCreate("Sleep", 0);
    SemaphoreRelease = OS_SemaphoreCreate("Release", 1);
