@@ -198,6 +198,8 @@ int main(int argc, char *argv[])
       }
    }
 
+   if(bss_start == 0)
+      bss_start = length;
    if(length > bss_start - elfHeader->e_entry)
    {
       length = bss_start - elfHeader->e_entry;
