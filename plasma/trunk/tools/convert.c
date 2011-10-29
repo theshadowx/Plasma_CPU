@@ -155,11 +155,13 @@ int main(int argc, char *argv[])
          elfRegInfo = (ELF_RegInfo*)(buf + elfProgram->p_offset);
          gp_ptr = ntohl(elfRegInfo->ri_gp_value);
       }
-      if(elfProgram->p_vaddr < BUF_SIZE)
+      if((int)elfProgram->p_vaddr < BUF_SIZE)
       {
          //printf("[0x%x,0x%x,0x%x,0x%x,0x%x]\n", elfProgram->p_vaddr,
          //   elfProgram->p_offset, elfProgram->p_filesz, elfProgram->p_memsz,
          //   elfProgram->p_flags);
+         if((int)elfProgram->p_vaddr < 0)
+            elfProgram->p_vaddr = 0;
          memcpy(code + elfProgram->p_vaddr, buf + elfProgram->p_offset,
                  elfProgram->p_filesz);
          length = elfProgram->p_vaddr + elfProgram->p_filesz;
