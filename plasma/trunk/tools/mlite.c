@@ -154,7 +154,8 @@ static unsigned int HWMemory[8];
 
 static int mem_read(State *s, int size, unsigned int address)
 {
-   unsigned int value=0, ptr;
+   unsigned int value=0;
+   unsigned char *ptr;
 
    s->irqStatus |= IRQ_UART_WRITE_AVAILABLE;
    switch(address)
@@ -179,7 +180,7 @@ static int mem_read(State *s, int size, unsigned int address)
          return s->faultAddr;
    }
 
-   ptr = (unsigned int)s->mem + (address % MEM_SIZE);
+   ptr = s->mem + (address % MEM_SIZE);
 
    if(0x10000000 <= address && address < 0x10000000 + 1024*1024)
       ptr += 1024*1024;
@@ -211,7 +212,7 @@ static int mem_read(State *s, int size, unsigned int address)
 
 static void mem_write(State *s, int size, int unsigned address, unsigned int value)
 {
-   unsigned int ptr;
+   unsigned char *ptr;
 
    switch(address)
    {
@@ -236,13 +237,13 @@ static void mem_write(State *s, int size, int unsigned address, unsigned int val
    if(MMU_TLB <= address && address <= MMU_TLB+MMU_ENTRIES * 8)
    {
       //printf("TLB 0x%x 0x%x\n", address - MMU_TLB, value);
-      ptr = (unsigned int)s->mmuEntry + address - MMU_TLB;
+      ptr = (unsigned char*)s->mmuEntry + address - MMU_TLB;
       *(int*)ptr = value;
       s->irqStatus &= ~IRQ_MMU;
       return;
    }
 
-   ptr = (unsigned int)s->mem + (address % MEM_SIZE);
+   ptr = s->mem + (address % MEM_SIZE);
 
    if(0x10000000 <= address && address < 0x10000000 + 1024*1024)
       ptr += 1024*1024;
