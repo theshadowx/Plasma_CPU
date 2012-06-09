@@ -12,10 +12,12 @@
 #ifndef __PLASMA_H__
 #define __PLASMA_H__
 
-/*********** Hardware addesses ***********/
+/*********** Hardware addresses ***********/
 #define RAM_INTERNAL_BASE 0x00000000 //8KB
-#define RAM_EXTERNAL_BASE 0x10000000 //1MB
+#define RAM_EXTERNAL_BASE 0x10000000 //1MB or 64MB
 #define RAM_EXTERNAL_SIZE 0x00100000
+#define ETHERNET_RECEIVE  0x13ff0000
+#define ETHERNET_TRANSMIT 0x13fe0000
 #define MISC_BASE         0x20000000
 #define UART_WRITE        0x20000000
 #define UART_READ         0x20000000
@@ -43,10 +45,6 @@
 #define IRQ_ETHERNET_TRANSMIT    0x20
 #define IRQ_GPIO31_NOT           0x40
 #define IRQ_GPIO31               0x80
-
-/*********** Ethernet buffers ************/
-#define ETHERNET_RECEIVE  0x13ff0000
-#define ETHERNET_TRANSMIT 0x13fe0000
 
 #endif //__PLASMA_H__
 
