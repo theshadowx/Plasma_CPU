@@ -731,7 +731,7 @@ static void ConsoleLs(IPSocket *socket, char *argv[])
       bytes = OS_fdir(file, buf);
       if(bytes)
          break;
-      if(buf[0] == 255)
+      if((unsigned char)buf[0] == 255)
          continue;
       bytes = OS_flength(buf);
       sprintf(buf2, "%s:%d                    ", buf, bytes);
