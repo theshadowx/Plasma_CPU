@@ -39,21 +39,15 @@ void Sleep(unsigned int value)
 
 int kbhit(void)
 {
-   struct termios oldt, newt;
    struct timeval tv;
    fd_set read_fd;
 
-   tcgetattr(STDIN_FILENO, &oldt);
-   newt = oldt;
-   newt.c_lflag &= ~(ICANON | ECHO);
-   tcsetattr(STDIN_FILENO, TCSANOW, &newt);
    tv.tv_sec=0;
    tv.tv_usec=0;
    FD_ZERO(&read_fd);
    FD_SET(0,&read_fd);
    if(select(1, &read_fd, NULL, NULL, &tv) == -1)
       return 0;
-   //tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
    if(FD_ISSET(0,&read_fd))
       return 1;
    return 0;
@@ -69,7 +63,7 @@ int getch(void)
    newt.c_lflag &= ~(ICANON | ECHO);
    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
    ch = getchar();
-   //tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+   tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
    return ch;
 }
 #else

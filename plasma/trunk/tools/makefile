@@ -32,16 +32,21 @@ DWIN32 =
 BIN_MIPS = 
 VHDL_DIR = ../vhdl
 LINUX_PWD = ./
-GCC_MIPS  = $(BIN_MIPS)mips-elf-gcc $(CFLAGS)
-AS_MIPS   = $(BIN_MIPS)mips-elf-as
-LD_MIPS   = $(BIN_MIPS)mips-elf-ld
-DUMP_MIPS = $(BIN_MIPS)mips-elf-objdump
+#GCC_MIPS  = $(BIN_MIPS)mips-elf-gcc $(CFLAGS)
+#AS_MIPS   = $(BIN_MIPS)mips-elf-as
+#LD_MIPS   = $(BIN_MIPS)mips-elf-ld
+#DUMP_MIPS = $(BIN_MIPS)mips-elf-objdump
+GCC_MIPS = mips-uclibc-gcc $(CFLAGS)
+AS_MIPS = mips-uclibc-as
+LD_MIPS = mips-uclibc-ld
+DUMP_MIPS = mips-uclibc-objdump
 CONVERT_BIN = $(LINUX_PWD)convert_bin.exe
 #CONVERT_BIN = $(BIN_MIPS)mips-elf-objcopy -I elf32-big -O binary test.axf test.bin
 
 endif
 
 CFLAGS = -O2 -Wall -c -s 
+CFLAGS += -fno-pic -mips1 -mno-abicalls
 
 all: convert_bin.exe tracehex.exe bintohex.exe ram_image.exe
 	@echo make targets = count, opcodes, pi, test, run, tohex,\
@@ -119,7 +124,7 @@ count:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c 
-	$(LD_MIPS) -Ttext 0 -eentry -Map test.map -s -N -o test.axf \
+	$(LD_MIPS) -Ttext 0 -e entry -Map test.map -s -N -o test.axf \
 		boot.o count.o no_os.o 
 	-$(DUMP_MIPS) --disassemble test.axf > test.lst
 	$(CONVERT_BIN)
@@ -149,7 +154,7 @@ count3:
 	$(AS_MIPS) -o boot.o boot.asm
 	$(GCC_MIPS) count.c
 	$(GCC_MIPS) no_os.c
-	$(LD_MIPS) -Ttext 0x2000 -eentry -Map test.map -s -N -o test.axf \
+	$(LD_MIPS) -Ttext 0x1000 -eentry -Map test.map -s -N -o test.axf \
 		boot.o count.o no_os.o
 	-$(DUMP_MIPS) --disassemble test.axf > test.lst
 	$(CONVERT_BIN)
