@@ -22,11 +22,13 @@
  *--------------------------------------------------------------------*/
 #include "rtos.h"
 
-#define FLASH_SIZE        1024*1024*16
-#define FLASH_SECTOR_SIZE 1024*128
+#define FLASH_SIZE        (1024*1024*16)
+#define FLASH_SECTOR_SIZE (1024*128)
 #define FLASH_BLOCK_SIZE  512
 #define FLASH_LN2_SIZE    9                  //2^FLASH_LN2_SIZE == FLASH_BLOCK_SIZE
 #define FLASH_OFFSET      FLASH_SECTOR_SIZE  //offset to start of flash file system
+#define FLASH_BLOCKS      FLASH_SIZE/FLASH_BLOCK_SIZE
+#define FLASH_START       (FLASH_OFFSET+FLASH_BLOCKS/8*2)/FLASH_BLOCK_SIZE
 
 #define BLOCK_SIZE        512
 #define FILE_NAME_SIZE    40
@@ -89,9 +91,7 @@ void OS_fdelete(char *name);
 
 
 /***************** Media Functions Start ***********************/
-#ifdef INCLUDE_FLASH
-#define FLASH_BLOCKS FLASH_SIZE/FLASH_BLOCK_SIZE
-#define FLASH_START  (FLASH_OFFSET+FLASH_BLOCKS/8*2)/FLASH_BLOCK_SIZE
+#ifndef EXCLUDE_FLASH
 static unsigned char FlashBlockEmpty[FLASH_BLOCKS/8];
 static unsigned char FlashBlockUsed[FLASH_BLOCKS/8];
 static int FlashBlock;
@@ -106,13 +106,16 @@ static int MediaBlockCleanup(void)
    buf = (unsigned char*)malloc(FLASH_SECTOR_SIZE);
    if(buf == NULL)
       return 0;
+   FlashLock();
    for(sector = FLASH_OFFSET / FLASH_SECTOR_SIZE; sector < FLASH_SIZE / FLASH_SECTOR_SIZE; ++sector)
    {
+      printf(".");
       FlashRead((uint16*)buf, FLASH_SECTOR_SIZE*sector, FLASH_SECTOR_SIZE);
       if(sector == FLASH_OFFSET / FLASH_SECTOR_SIZE)
       {
-         for(i = 0; i < FLASH_BLOCKS/8; ++i)
+         for(i = FLASH_START/8; i < FLASH_BLOCKS/8; ++i)
             FlashBlockEmpty[i] |= ~FlashBlockUsed[i];
+         memset(FlashBlockEmpty, 0, FLASH_START/8);
          memcpy(buf, FlashBlockEmpty, sizeof(FlashBlockEmpty));
          memset(FlashBlockUsed, 0xff, sizeof(FlashBlockUsed));
          memset(buf+sizeof(FlashBlockEmpty), 0xff, sizeof(FlashBlockUsed));
@@ -121,7 +124,7 @@ static int MediaBlockCleanup(void)
       for(block = 0; block < FLASH_SECTOR_SIZE / FLASH_BLOCK_SIZE; ++block)
       {
          i = sector * FLASH_SECTOR_SIZE / FLASH_BLOCK_SIZE + block;
-         if(i < FLASH_BLOCKS/8 && (FlashBlockEmpty[i >> 3] & (1 << (i & 7))))
+         if(FlashBlockEmpty[i >> 3] & (1 << (i & 7)))
          {
             memset(buf + FLASH_BLOCK_SIZE*block, 0xff, FLASH_BLOCK_SIZE);
             ++count;
@@ -130,6 +133,8 @@ static int MediaBlockCleanup(void)
       FlashErase(FLASH_SECTOR_SIZE * sector);
       FlashWrite((uint16*)buf, FLASH_SECTOR_SIZE * sector, FLASH_SECTOR_SIZE);
    }
+   FlashBlock = FLASH_START;
+   FlashUnlock();
    free(buf);
    return count;
 }
@@ -141,9 +146,10 @@ int MediaBlockInit(void)
    FlashRead((uint16*)FlashBlockUsed, FLASH_OFFSET+sizeof(FlashBlockEmpty), 
              sizeof(FlashBlockUsed));
    FlashBlock = FLASH_START;
+   memset(FlashBlockEmpty, 0, FLASH_START/8);  //space for FlashBlockEmpty/Used
    return FlashBlockEmpty[FlashBlock >> 3] & (1 << (FlashBlock & 7));
 }
-#endif
+#endif  //!EXCLUDE_FLASH
 
 
 static uint32 MediaBlockMalloc(OS_FILE *file)
@@ -153,7 +159,7 @@ static uint32 MediaBlockMalloc(OS_FILE *file)
 
    if(file->fileEntry.mediaType == FILE_MEDIA_RAM)
       return (uint32)malloc(file->fileEntry.blockSize);
-#ifdef INCLUDE_FLASH
+#ifndef EXCLUDE_FLASH
    //Find empty flash block
    for(i = FlashBlock; i < FLASH_BLOCKS; ++i)
    {
@@ -183,7 +189,7 @@ static void MediaBlockFree(OS_FILE *file, uint32 blockIndex)
 {
    if(file->fileEntry.mediaType == FILE_MEDIA_RAM)
       free((void*)blockIndex);
-#ifdef INCLUDE_FLASH
+#ifndef EXCLUDE_FLASH
    else
    {
       int i=blockIndex, j;
@@ -200,7 +206,7 @@ static void MediaBlockRead(OS_FILE *file, uint32 blockIndex)
 {
    if(file->fileEntry.mediaType == FILE_MEDIA_RAM)
       file->block = (OS_Block_t*)blockIndex;
-#ifdef INCLUDE_FLASH
+#ifndef EXCLUDE_FLASH
    else
    {
       file->block = &file->blockLocal;
@@ -214,7 +220,7 @@ static void MediaBlockWrite(OS_FILE *file, uint32 blockIndex)
 {
    (void)file;
    (void)blockIndex;
-#ifdef INCLUDE_FLASH
+#ifndef EXCLUDE_FLASH
    if(file->fileEntry.mediaType != FILE_MEDIA_RAM)
       FlashWrite((uint16*)file->block, blockIndex << FLASH_LN2_SIZE, FLASH_BLOCK_SIZE);
 #endif
@@ -487,7 +493,7 @@ OS_FILE *OS_fopen(char *name, char *mode)
       rootFileEntry.blockSize = dir.fileEntry.blockSize;
       rootFileEntry.isDirectory = 1;
       BlockRead(&dir, BLOCK_EOF);    //Flush data
-#ifdef INCLUDE_FLASH
+#ifndef EXCLUDE_FLASH
       file = OS_fopen("flash", "w+");
       if(file == NULL)
          return NULL;
