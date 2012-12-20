@@ -15,22 +15,40 @@
 #include "plasma.h"
 #include "rtos.h"
 
+static OS_Mutex_t *mutexFlash;
+
+void FlashLock(void)
+{
+   if(mutexFlash == NULL)
+      mutexFlash = OS_MutexCreate("flash");
+   OS_MutexPend(mutexFlash);
+}
+
+
+void FlashUnlock(void)
+{
+   OS_MutexPost(mutexFlash);
+}
+
 
 void FlashRead(uint16 *dst, uint32 byteOffset, int bytes)
 {
    volatile uint32 *ptr=(uint32*)(FLASH_BASE + (byteOffset << 1));
+   FlashLock();
    *ptr = 0xff;                   //read mode
    while(bytes > 0)
    {
       *dst++ = (uint16)*ptr++;
       bytes -= 2;
    }
+   FlashUnlock();
 }
 
 
 void FlashWrite(uint16 *src, uint32 byteOffset, int bytes)
 {
    volatile uint32 *ptr=(uint32*)(FLASH_BASE + (byteOffset << 1));
+   FlashLock();
    while(bytes > 0)
    {
       *ptr = 0x40;                //write mode
@@ -39,14 +57,17 @@ void FlashWrite(uint16 *src, uint32 byteOffset, int bytes)
          ;
       bytes -= 2;
    }
+   FlashUnlock();
 }
 
 
 void FlashErase(uint32 byteOffset)
 {
    volatile uint32 *ptr=(uint32*)(FLASH_BASE + (byteOffset << 1));
+   FlashLock();
    *ptr = 0x20;                   //erase block
    *ptr = 0xd0;                   //confirm
    while((*ptr & 0x80) == 0)      //check status
       ;
+   FlashUnlock();
 }
