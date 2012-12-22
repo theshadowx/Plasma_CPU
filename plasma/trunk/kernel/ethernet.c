@@ -34,7 +34,6 @@ static unsigned char reflectNibble[256];
 static OS_Semaphore_t *SemEthernet, *SemEthTransmit;
 static int gIndex;          //byte index into 0x13ff0000 receive buffer
 static int gCheckedBefore;
-static int gEmptyBefore;
 
 
 //Read received data from 0x13ff0000.  Data starts with 0x5d+MACaddress.
@@ -44,95 +43,43 @@ static int gEmptyBefore;
 int EthernetReceive(unsigned char *buffer, int length)
 {
    int count;
-   int start, i, j, shift, offset;
+   int start, i, j, shift, offset, index;
    int byte, byteNext;
    unsigned long crc;
    int byteCrc;
    volatile unsigned char *buf = (unsigned char*)ETHERNET_RECEIVE;
-   int countEmpty, countEmptyGoal, countOk, needWait;
    int packetExpected;
 
    //Find the start of a frame
-   countEmpty = 0;
-   countOk = 0;
-   needWait = 0;
-   countEmptyGoal = COUNT_EMPTY;
    packetExpected = MemoryRead(IRQ_STATUS) & IRQ_ETHERNET_RECEIVE;
-   if(packetExpected && buf[gIndex] == BYTE_EMPTY && gEmptyBefore)
-   {
-      //printf("Check ");
-      countEmptyGoal = 1500;
-   }
    MemoryRead(ETHERNET_REG);        //clear receive interrupt
-   for(i = 0; i < INDEX_MASK; ++i)
+
+   //Find dest MAC address
+   for(offset = 0; offset <= INDEX_MASK; ++offset)
    {
-      //Check if partial packet possibly received
-      if(needWait && gCheckedBefore == 0 && countOk != i && countEmpty != i)
+      index = (gIndex + offset) & INDEX_MASK;
+      byte = buf[index];
+      if(byte == 0x5d)  //bit pattern 01011101
       {
-         gCheckedBefore = 1;
-         //printf("W(%d,%d,%d)", i, countOk, countEmpty);
-         return 0;                  //Wait for more data
-      }
-
-      //Detect start of frame
-      byte = buf[(gIndex + i) & INDEX_MASK];
-      if(byte == gDestMac[countOk] || (countOk && byte == 0xff))
-      {
-         if(++countOk == sizeof(gDestMac))
+         for(i = 1; i < sizeof(gDestMac); ++i)
          {
-            //Set bytes before 0x5d to BYTE_EMPTY
-            offset = i - (int)sizeof(gDestMac);
-            //if(offset > 3)
-            //   printf("es%d ", offset);
-            for(j = 0; j <= offset; ++j)
-            {
-               buf[gIndex] = BYTE_EMPTY;
-               gIndex = (gIndex + 1) & INDEX_MASK;
-            }
-            break;
+            j = (index + i) & INDEX_MASK;
+            byte = buf[j];
+            if(byte != 0xff && byte != gDestMac[i])
+               break;
          }
+         if(i == sizeof(gDestMac))
+            break;    //found dest MAC
       }
-      else
-      {
-         //if(countOk)
-         //   printf("N%d ", countOk);
-         if(countOk == 3 && byte == BYTE_EMPTY)
-            needWait = 1;
-         if(byte == 0x5d)
-            countOk = 1;
-         else
-            countOk = 0;
-      }
-
-      //Check if remainder of buffer is empty
-      if(byte == BYTE_EMPTY)
-      {
-         if(++countEmpty >= countEmptyGoal)
-         {
-            //Set skiped bytes to BYTE_EMPTY
-            //if(i - countEmpty > 3)
-            //{
-            //   printf("eb%d \n", i - countEmpty);
-            //   //dump((char*)buf+gIndex, 0x200);
-            //}
-            for(j = 0; j <= i - countEmpty; ++j)
-            {
-               buf[gIndex] = BYTE_EMPTY;
-               gIndex = (gIndex + 1) & INDEX_MASK;
-            }
-            gCheckedBefore = 0;
-            if(countEmpty >= i && packetExpected)
-               gEmptyBefore = 1;
-            return 0;
-         }
-      }
-      else
-      {
-         if(countEmpty > 2 || (countEmpty > 0 && countEmpty == i))
-            needWait = 1;
-         countEmpty = 0;
-         gEmptyBefore = 0;
-      }
+      else if(byte == BYTE_EMPTY && packetExpected == 0)
+         return 0;
+   }
+   if(offset > INDEX_MASK)
+      return 0;
+   while(gIndex != index)
+   {
+      buf[gIndex] = BYTE_EMPTY;
+      gIndex = (gIndex + 1) & INDEX_MASK;
    }
 
    //Found start of frame.  Now find end of frame and check CRC.
@@ -185,12 +132,11 @@ int EthernetReceive(unsigned char *buffer, int length)
       }
    }
    gIndex = start;
-   if(gCheckedBefore)
+   if(gCheckedBefore++ > 1)
    {
-      //printf("CRC failure\n");
       buf[gIndex] = BYTE_EMPTY;
+      gIndex = (gIndex + 1) & INDEX_MASK;
    }
-   gCheckedBefore = 1;
    return 0;        //wait for more data
 }
 
@@ -254,14 +200,18 @@ void EthernetThread(void *arg)
    int length;
    int rc;
    unsigned int ticks, ticksLast=0;
+   int ticksWait=50;
    IPFrame *ethFrame=NULL;
-   static int ethErrorCount=0;
    (void)arg;
 
    for(;;)
    {
-      OS_InterruptMaskSet(IRQ_ETHERNET_RECEIVE);
-      OS_SemaphorePend(SemEthernet, 50);  //wait for interrupt
+      OS_InterruptMaskSet(IRQ_ETHERNET_RECEIVE);      //enable interrupt
+      rc = OS_SemaphorePend(SemEthernet, ticksWait);  //wait for interrupt
+      if(rc)
+         ticksWait = 50;
+      else
+         ticksWait = 2;
 
       //Process all received packets
       for(;;)
@@ -269,25 +219,10 @@ void EthernetThread(void *arg)
          if(ethFrame == NULL)
             ethFrame = IPFrameGet(FRAME_COUNT_RCV);
          if(ethFrame == NULL)
-         {
-            OS_ThreadSleep(50);
             break;
-         }
          length = EthernetReceive(ethFrame->packet, PACKET_SIZE);
          if(length == 0)
-         {
-#if 1       //Disable this on quiet networks
-            //No Ethernet packets seen for 60 seconds?
-            if(++ethErrorCount >= 120)
-            {
-               printf("\nEthernetInit\n");
-               ethErrorCount = 0;
-               EthernetInit(NULL);  //Need to re-initialize
-            }
-#endif
             break;
-         }
-         ethErrorCount = 0;
          Led(1, 1);
          rc = IPProcessEthernetPacket(ethFrame, length);
          Led(1, 0);
@@ -308,7 +243,7 @@ void EthernetThread(void *arg)
 void EthernetIsr(void *arg)
 {
    (void)arg;
-   OS_InterruptMaskClear(IRQ_ETHERNET_TRANSMIT | IRQ_ETHERNET_RECEIVE);
+   OS_InterruptMaskClear(IRQ_ETHERNET_RECEIVE);
    OS_SemaphorePost(SemEthernet);
 }
 

@@ -24,7 +24,7 @@
 #define HEAP_COUNT 8
 
 #define PRINTF_DEBUG(STRING, A, B)
-//#define PRINTF_DEBUG(STRING, A, B) printf(STRING, A, B)
+//#define PRINTF_DEBUG(STRING, A, B) UartPrintfCritical(STRING, A, B)
 
 /*************** Structures ***************/
 #ifdef WIN32
@@ -203,8 +203,9 @@ void *OS_HeapMalloc(OS_Heap_t *heap, int bytes)
          }
          heap->available = prevp;
          node->next = (HeapNode_t*)heap;
-         OS_SemaphorePost(heap->semaphore);
+         PRINTF_DEBUG("malloc(%d, %d)\n", node->size * sizeof(HeapNode_t), heap->count); 
          ++heap->count;
+         OS_SemaphorePost(heap->semaphore);
          //UartPrintfCritical("OS_HeapMalloc(%d)=0x%x\n", bytes, (int)(node+1));
          return (void*)(node + 1);
       }
@@ -234,8 +235,9 @@ void OS_HeapFree(void *block)
    assert(heap->magic == HEAP_MAGIC);
    if(heap->magic != HEAP_MAGIC)
       return;
-   --heap->count;
    OS_SemaphorePend(heap->semaphore, OS_WAIT_FOREVER);
+   --heap->count;
+   PRINTF_DEBUG("free(%d, %d)\n", bp->size * sizeof(HeapNode_t), heap->count); 
    for(node = heap->available; !(node < bp && bp < node->next); node = node->next)
    {
       if(node >= node->next && (bp > node || bp < node->next))
@@ -425,12 +427,12 @@ static void OS_ThreadReschedule(int roundRobin)
          assert(threadCurrent->magic[0] == THREAD_MAGIC); //check stack overflow
          if(threadCurrent->state == THREAD_RUNNING)
             OS_ThreadPriorityInsert(&ThreadHead, threadCurrent);
-         PRINTF_DEBUG("Pause(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
+         //PRINTF_DEBUG("Pause(%d,%s) ", OS_CpuIndex(), threadCurrent->name);
          rc = setjmp(threadCurrent->env);  //ANSI C call to save registers
          if(rc)
          {
-            PRINTF_DEBUG("Resume(%d,%s) ", OS_CpuIndex(), 
-               ThreadCurrent[OS_CpuIndex()]->name);
+            //PRINTF_DEBUG("Resume(%d,%s) ", OS_CpuIndex(), 
+            //   ThreadCurrent[OS_CpuIndex()]->name);
             return;  //Returned from longjmp()
          }
       }
@@ -730,7 +732,7 @@ int OS_SemaphorePend(OS_Semaphore_t *semaphore, int ticks)
    OS_Thread_t *thread;
    int returnCode=0;
 
-   PRINTF_DEBUG("SemPend(%d,%s) ", OS_CpuIndex(), semaphore->name);
+   //PRINTF_DEBUG("SemPend(%d,%s) ", OS_CpuIndex(), semaphore->name);
    assert(semaphore);
    assert(InterruptInside[OS_CpuIndex()] == 0);
    state = OS_CriticalBegin();    //Disable interrupts
@@ -773,7 +775,7 @@ void OS_SemaphorePost(OS_Semaphore_t *semaphore)
    uint32 state;
    OS_Thread_t *thread;
 
-   PRINTF_DEBUG("SemPost(%d,%s) ", OS_CpuIndex(), semaphore->name);
+   //PRINTF_DEBUG("SemPost(%d,%s) ", OS_CpuIndex(), semaphore->name);
    assert(semaphore);
    state = OS_CriticalBegin();
    if(++semaphore->count <= 0)
@@ -1324,6 +1326,11 @@ void OS_Init(uint32 *heapStorage, uint32 bytes)
    OS_InterruptMaskClear(0xffffffff);   //Disable interrupts
    HeapArray[0] = OS_HeapCreate("Heap", heapStorage, bytes);
    HeapArray[1] = HeapArray[0];
+#ifndef WIN32
+   HeapArray[7] = OS_HeapCreate("Alt", (uint8*)RAM_EXTERNAL_BASE + 
+      RAM_EXTERNAL_SIZE*2, 1024*1024*60);
+   OS_HeapAlternate(HeapArray[0], HeapArray[7]);
+#endif
    SemaphoreSleep = OS_SemaphoreCreate("Sleep", 0);
    SemaphoreRelease = OS_SemaphoreCreate("Release", 1);
    SemaphoreLock = OS_SemaphoreCreate("Lock", 1);
@@ -1375,6 +1382,7 @@ int main(int programEnd, char *argv[])
    (void)argv;
 
    UartPrintfCritical("Starting RTOS\n");
+   MemoryWrite(IRQ_MASK, 0);
 #ifdef WIN32
    OS_Init((uint32*)HeapSpace, sizeof(HeapSpace));  //For PC simulation
 #else

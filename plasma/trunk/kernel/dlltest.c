@@ -1,38 +1,19 @@
 // dlltest.c
 // Compile this program with "make dlltest".  
-// Then ftp test.bin to /flash/bin/dlltest.
+// Then ftp dlltest.axf to /flash/bin/dlltest.
 // Then from a telnet prompt type "dlltest".
 #include "dll.h"
 
+int a, b=7;
 
-void SocketReceive(IPSocket *socket)
+int main(int argc, char *argv[])
 {
+   int i=40;
+   printf("Hello from dlltest! a=%d b=%d\n", a, b);
+   if(argc > 1)
+      printf("arg=%s\n", argv[1]);
+   printf("Enter a number\n");
+   scanf("%d", &i);
+   printf("i=%d\n", i);
+   return 0;
 }
-
-
-void MyThread(void *sock)
-{
-   char buf[80];
-   int i, bytes;
-   IPSocket *socket = sock;
-
-   for(i = 0; i < 10; ++i)
-   {
-      bytes = IPRead(socket, buf, sizeof(buf)-1);
-      buf[bytes] = 0;
-      IPPrintf(socket, "%d %s\n", i, buf);
-      OS_ThreadSleep(100);
-   }
-   socket->funcPtr = socket->userFunc;  //restore socket receive function
-}
-
-
-// Function shouldn't block
-void Start(IPSocket *socket, char *argv[])
-{
-   IPPrintf(socket, "Hello from dlltest\n");
-   socket->userFunc = socket->funcPtr;  //remember prev socket receive func
-   socket->funcPtr = SocketReceive;     //new socket receive function
-   OS_ThreadCreate("MyThread", MyThread, socket, 100, 0);
-}
-

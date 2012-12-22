@@ -12,7 +12,6 @@
 #ifndef __DLL_H__
 #define __DLL_H__
 
-#define INCLUDE_FILESYS
 #include "rtos.h"
 #include "tcpip.h"
 
@@ -24,6 +23,10 @@ typedef void *(*DllFunc)();
 void *DllDummy(void) { printf("Dummy"); return NULL; }
 
 const DllFunc DllFuncList[] = {
+   (DllFunc)ConsolePrintf,
+   (DllFunc)ConsoleScanf,
+   (DllFunc)ConsoleKbhit,
+   (DllFunc)ConsoleGetch,
    (DllFunc)strcpy,
    (DllFunc)strncpy,
    (DllFunc)strcat,
@@ -108,13 +111,30 @@ const DllFunc DllFuncList[] = {
    (DllFunc)OS_InterruptMaskSet,
    (DllFunc)OS_InterruptMaskClear,
    (DllFunc)UartPrintf,
-   (DllFunc)UartPrintfPoll,
+   (DllFunc)UartPrintfCritical,
    (DllFunc)UartPrintfCritical,
    (DllFunc)UartScanf,
    (DllFunc)OS_puts,
    (DllFunc)OS_getch,
    (DllFunc)OS_kbhit,
    (DllFunc)Led,
+#ifndef WIN32
+   (DllFunc)__negsf2,
+   (DllFunc)__addsf3,
+   (DllFunc)__subsf3,
+   (DllFunc)__mulsf3,
+   (DllFunc)__divsf3,
+   (DllFunc)__fixsfsi,
+   (DllFunc)__floatsisf,
+#else
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+#endif
    (DllFunc)FP_Sqrt,
    (DllFunc)FP_Cos,
    (DllFunc)FP_Sin,
@@ -123,7 +143,7 @@ const DllFunc DllFuncList[] = {
    (DllFunc)FP_Exp,
    (DllFunc)FP_Log,
    (DllFunc)FP_Pow,
-#ifdef INCLUDE_FILESYS
+#ifndef EXCLUDE_FILESYS
    (DllFunc)OS_fopen,
    (DllFunc)OS_fclose,
    (DllFunc)OS_fread,
@@ -132,7 +152,7 @@ const DllFunc DllFuncList[] = {
    (DllFunc)OS_fmkdir,
    (DllFunc)OS_fdir,
    (DllFunc)OS_fdelete,
-#else //INCLUDE_FILESYS
+#else //EXCLUDE_FILESYS
    DllDummy,
    DllDummy,
    DllDummy,
@@ -141,8 +161,8 @@ const DllFunc DllFuncList[] = {
    DllDummy,
    DllDummy,
    DllDummy,
-#endif //INCLUDE_FILESYS
-#ifndef WIN32
+#endif //EXCLUDE_FILESYS
+#ifndef EXCLUDE_FLASH
    (DllFunc)FlashRead,
    (DllFunc)FlashWrite,
    (DllFunc)FlashErase,
@@ -159,7 +179,9 @@ const DllFunc DllFuncList[] = {
    (DllFunc)IPPrintf,
    (DllFunc)IPResolve,
    (DllFunc)IPAddressSelf,
-   (DllFunc)IPNameValue
+   (DllFunc)IPNameValue,
+   DllDummy,
+   DllDummy
 };
 
 #endif //DLL_SETUP
@@ -168,6 +190,10 @@ const DllFunc DllFuncList[] = {
 #if defined(DLL_CALL) || !defined(DLL_SETUP)
 
 enum {
+   ENUM_ConsolePrintf,
+   ENUM_ConsoleScanf,
+   ENUM_ConsoleKbhit,
+   ENUM_ConsoleGetch,
    ENUM_strcpy,
    ENUM_strncpy,
    ENUM_strcat,
@@ -243,6 +269,13 @@ enum {
    ENUM_OS_getch,
    ENUM_OS_kbhit,
    ENUM_Led,
+   ENUM_NEGSF2,
+   ENUM_ADDSF3,
+   ENUM_SUBSF3,
+   ENUM_MULSF3,
+   ENUM_DIVSF3,
+   ENUM_FIXSFSI,
+   ENUM_FLOATSISF,
    ENUM_FP_Sqrt,
    ENUM_FP_Cos,
    ENUM_FP_Sin,
@@ -270,42 +303,61 @@ enum {
    ENUM_IPPrintf,
    ENUM_IPResolve,
    ENUM_IPAddressSelf,
-   ENUM_IPNameValue
+   ENUM_IPNameValue,
+   ENUM_USER0,
+   ENUM_USER1,
+   ARGV_SOCKET = -2
 };
 
 extern const DllFunc *DllF;
 
 #undef strcpy
+#undef strncpy
 #undef strcat
 #undef strncat
 #undef strcmp
+#undef strncmp
 #undef strlen
 #undef memcpy
 #undef memcmp
+#undef memmove
 #undef memset
 #undef abs
 #undef atoi
+#undef itoa
+#undef srand
+#undef rand
+#undef sprintf
+#undef sscanf
+#undef strstr
+#undef strtol
+#undef scanf
+#undef printf
 
+#define printf (int)DllF[ENUM_ConsolePrintf]
+#define scanf (int)DllF[ENUM_ConsoleScanf]
+#define kbhit (int)DllF[ENUM_ConsoleKbhit]
+#define getch (int)DllF[ENUM_ConsoleGetch]
 #define strcpy DllF[ENUM_strcpy]
 #define strncpy DllF[ENUM_strncpy]
 #define strcat DllF[ENUM_strcat]
 #define strncat DllF[ENUM_strncat]
 #define strcmp (int)DllF[ENUM_strcmp]
 #define strncmp (int)DllF[ENUM_strncmp]
-#define strstr DllF[ENUM_strstr]
+#define strstr (char*)DllF[ENUM_strstr]
 #define strlen (int)DllF[ENUM_strlen]
 #define memcpy DllF[ENUM_memcpy]
 #define memmove DllF[ENUM_memmove]
 #define memcmp (int)DllF[ENUM_memcmp]
 #define memset DllF[ENUM_memset]
 #define abs (int)DllF[ENUM_abs]
-#define rand (int)DllF[ENUM_rand]
+#define rand (unsigned int)DllF[ENUM_rand]
 #define srand DllF[ENUM_srand]
 #define strtol (int)DllF[ENUM_strtol]
 #define atoi (int)DllF[ENUM_atoi]
 #define itoa DllF[ENUM_itoa]
-#define sprintf DllF[ENUM_sprintf]
-#define sscanf DllF[ENUM_sscanf]
+#define sprintf (int)DllF[ENUM_sprintf]
+#define sscanf (int)DllF[ENUM_sscanf]
 #define dump DllF[ENUM_dump]
 #define qsort DllF[ENUM_qsort]
 #define bsearch DllF[ENUM_bsearch]
@@ -324,7 +376,7 @@ extern const DllFunc *DllF;
 #define OS_ThreadExit DllF[ENUM_OS_ThreadExit]
 #define OS_ThreadSelf DllF[ENUM_OS_ThreadSelf]
 #define OS_ThreadSleep DllF[ENUM_OS_ThreadSleep]
-#define OS_ThreadTime DllF[ENUM_OS_ThreadTime]
+#define OS_ThreadTime (int)DllF[ENUM_OS_ThreadTime]
 #define OS_ThreadInfoSet DllF[ENUM_OS_ThreadInfoSet]
 #define OS_ThreadInfoGet DllF[ENUM_OS_ThreadInfoGet]
 #define OS_ThreadPriorityGet (int)DllF[ENUM_OS_ThreadPriorityGet]
@@ -372,8 +424,8 @@ extern const DllFunc *DllF;
 #define OS_fopen DllF[ENUM_OS_fopen]
 #define OS_fclose DllF[ENUM_OS_fclose]
 #define OS_fread (int)DllF[ENUM_OS_fread]
-#define OS_fwrite DllF[ENUM_OS_fwrite]
-#define OS_fseek DllF[ENUM_OS_fseek]
+#define OS_fwrite (int)DllF[ENUM_OS_fwrite]
+#define OS_fseek (int)DllF[ENUM_OS_fseek]
 #define OS_fmkdir DllF[ENUM_OS_fmkdir]
 #define OS_fdir DllF[ENUM_OS_fdir]
 #define OS_fdelete DllF[ENUM_OS_fdelete]
@@ -385,10 +437,11 @@ extern const DllFunc *DllF;
 #define IPWrite (int)DllF[ENUM_IPWrite]
 #define IPRead (int)DllF[ENUM_IPRead]
 #define IPClose DllF[ENUM_IPClose]
-#define IPPrintf DllF[ENUM_IPPrintf]
+#define IPPrintf (int)DllF[ENUM_IPPrintf]
 #define IPResolve DllF[ENUM_IPResolve]
 #define IPAddressSelf (int)DllF[ENUM_IPAddressSelf]
 #define IPNameValue DllF[ENUM_IPNameValue]
+#define time(P) OS_ThreadTime()
 
 #endif //DLL_CALL
 
@@ -402,27 +455,46 @@ const DllFunc *DllF = DllFuncList;
 
 // Included by DLL to initialize the DLL
 #if defined(DLL_ENTRY) && !defined(NO_DLL_ENTRY)
-const DllFunc *DllF;            //array of function pointers
-extern void *__bss_start;
-extern void *_end;
-void Start(IPSocket *socket, char *argv[]);
+const DllFunc *DllF;         //array of function pointers
+int main(int argc, char *argv[]);
 
 //Must be first function in file
-void *__start(DllFunc *DllFuncList)
+int __start(int argc, char *argv[])
 {
-   int *bss;
-   if(DllFuncList == NULL)
-      return (void*)__start;      //address where DLL should be loaded
-   for(bss = (int*)&__bss_start; bss < (int*)&_end; ++bss)
-      *bss = 0;
-   DllF = DllFuncList;
-   return (void*)Start;
+   extern void *__bss_start;
+   extern void *_end;
+   int *bss = (int*)&__bss_start;
+
+   if(bss == (int*)DllF)
+      ++bss;
+   while(bss < (int*)&_end)
+      *bss++ = 0;
+   DllF = (DllFunc*)argv[-1];
+   return main(argc, argv);
 }
+
+#ifdef INCLUDE_MATH
+typedef float (*DllFloat)(float);
+typedef float (*DllFloat2)(float,float);
+typedef long (*DllFloat3)(float);
+float __negsf2(float a) {return ((DllFloat)DllF[ENUM_NEGSF2])(a);}
+float __addsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_ADDSF3])(a,b);}
+float __subsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_SUBSF3])(a,b);}
+float __mulsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_MULSF3])(a,b);}
+float __divsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_DIVSF3])(a,b);}
+long __fixsfsi(float a) {return ((DllFloat3)DllF[ENUM_FIXSFSI])(a);}
+float __floatsisf(long a) {return ((DllFloat)DllF[ENUM_FLOATSISF])(a);}
+#endif
+
 #endif //DLL_ENTRY
 
 
 #ifdef DLL_STRINGS
 const char * const DllStrings[] = {
+   "printf",
+   "scanf",
+   "kbhit",
+   "getch",
    "strcpy",
    "strncpy",
    "strcat",
@@ -490,14 +562,21 @@ const char * const DllStrings[] = {
    "OS_InterruptStatus",
    "OS_InterruptMaskSet",
    "OS_InterruptMaskClear",
-   "printf", //"UartPrintf",
+   "UartPrintf",
    "UartPrintfPoll",
    "UartPrintfCritical",
-   "scanf", //"UartScanf",
+   "UartScanf",
    "OS_puts",
    "OS_getch",
    "OS_kbhit",
    "Led",
+   "FP_Neg",
+   "FP_Add",
+   "FP_Sub",
+   "FP_Mult",
+   "FP_Div",
+   "FP_ToInt",
+   "FP_ToLong",
    "FP_Sqrt",
    "FP_Cos",
    "FP_Sin",

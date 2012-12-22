@@ -183,10 +183,10 @@ int abs(int n)
 
 
 static uint32 Rand1=0x1f2bcda3;
-int rand(void)
+unsigned int rand(void)
 {
    Rand1 = 1664525 * Rand1 + 1013904223;  //from D.E. Knuth and H.W. Lewis
-   return Rand1;
+   return Rand1 << 16 | Rand1 >> 16;
 }
 
 

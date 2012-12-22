@@ -17,9 +17,9 @@
 #define FRAME_COUNT_SEND      10
 #define FRAME_COUNT_RCV       5
 #define RETRANSMIT_TIME       110
-#define SOCKET_TIMEOUT        15
+#define SOCKET_TIMEOUT        10
 #define SEND_WINDOW           7000
-#define RECEIVE_WINDOW        5120
+#define RECEIVE_WINDOW        (536*FRAME_COUNT/4)
 
 typedef enum IPMode_e {
    IP_MODE_UDP,
@@ -81,6 +81,7 @@ struct IPSocket {
    void *userPtr2;
    uint32 userData;
    uint32 userData2;
+   OS_Semaphore_t *userSemaphore;
 };
 
 //ethernet.c
@@ -100,10 +101,12 @@ void IPWriteFlush(IPSocket *socket);
 uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length);
 uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length);
 void IPClose(IPSocket *socket);
-#ifdef IPPRINTF
-void IPPrintf(IPSocket *socket, char *message, int arg0, int arg1, int arg2, int arg3);
+#ifdef INSIDE_TCPIP
+int IPPrintf(IPSocket *socket, char *message, 
+   int arg0, int arg1, int arg2, int arg3,
+   int arg4, int arg5, int arg6, int arg7);
 #else
-void IPPrintf(IPSocket *socket, char *message, ...);
+int IPPrintf(IPSocket *socket, char *message, ...);
 #endif
 void IPResolve(char *name, IPCallbackPtr resolvedFunc, void *arg);
 uint32 IPAddressSelf(void);
@@ -131,5 +134,10 @@ IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
                        IPCallbackPtr callback);
 void ConsoleInit(void);
 void *IPNameValue(const char *name, void *value);
+int ConsoleGetch(void);
+#ifndef INSIDE_NETUTIL
+int ConsoleScanf(char *format, ...);
+int ConsolePrintf(char *format, ...);
+#endif
 
 #endif //__TCPIP_H__

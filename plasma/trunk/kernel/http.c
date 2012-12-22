@@ -97,7 +97,7 @@ void HttpServer(IPSocket *socket)
             if(strncmp((char*)buf+4, name, len) == 0)
                break;
          }
-#if defined(WIN32) || defined(INCLUDE_FILESYS)
+#ifndef EXCLUDE_FILESYS
          if(length == HTML_LENGTH_LIST_END && HtmlFiles)
          {
             FILE *file;
@@ -137,7 +137,7 @@ void HttpServer(IPSocket *socket)
                return;
             }
          }
-#endif
+#endif //!EXCLUDE_FILESYS
          if(length != HTML_LENGTH_LIST_END)
          {
             if(length == HTML_LENGTH_CALLBACK)

@@ -20,7 +20,7 @@
  *                         FrameInsert()
  *--------------------------------------------------------------------*/
 #include "rtos.h"
-#define IPPRINTF
+#define INSIDE_TCPIP
 #include "tcpip.h"
 
 //ETHER FIELD                 OFFSET   LENGTH   VALUE
@@ -661,7 +661,7 @@ uint32 IPAddressSelf(void)
 static int IPProcessTCPPacket(IPFrame *frameIn)
 {
    uint32 seq, ack;
-   int length, ip_length, bytes, rc=0, notify=0;
+   int length, ip_length, bytes, rc=0, notify=0, window;
    IPSocket *socket, *socketNew;
    IPFrame *frameOut, *frame2, *framePrev;
    uint8 *packet, *packetOut;
@@ -873,12 +873,16 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
       socket->ack += bytes;
 
-      //Ack data
-      frameOut = IPFrameGet(FRAME_COUNT_SEND);
-      if(frameOut)
+      window = RECEIVE_WINDOW - (socket->ack - socket->ackProcessed);
+      if(window >= 536)
       {
-         frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
-         TCPSendPacket(socket, frameOut, TCP_DATA);
+         //Ack data
+         frameOut = IPFrameGet(FRAME_COUNT_SEND);
+         if(frameOut)
+         {
+            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+            TCPSendPacket(socket, frameOut, TCP_DATA);
+         }
       }
 
       //Using frame
@@ -1310,6 +1314,9 @@ IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPSockFuncPtr fun
 void IPWriteFlush(IPSocket *socket)
 {
    uint8 *packetOut;
+
+   if(socket == NULL)
+      socket = (IPSocket*)OS_ThreadInfoGet(OS_ThreadSelf(), 0);
    if(socket->frameSend && socket->state != IP_UDP &&
       socket->state != IP_PING)
    {
@@ -1331,13 +1338,16 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
    int offset;
    OS_Thread_t *self;
 
+   if(socket == NULL)
+      socket = (IPSocket*)OS_ThreadInfoGet(OS_ThreadSelf(), 0);
+
    if(socket->state > IP_TCP)
       return 0;
 
    if(socket->timeout)
       socket->timeout = socket->timeoutReset;
 
-#ifdef INCLUDE_FILESYS
+#ifndef EXCLUDE_FILESYS
    if(socket->fileOut)   //override stdout
       return fwrite((char*)buf, 1, length, socket->fileOut);
 #endif
@@ -1420,7 +1430,10 @@ uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length)
    IPFrame *frame, *frame2;
    int count=0, bytes, offset;
 
-#ifdef INCLUDE_FILESYS
+   if(socket == NULL)
+      socket = (IPSocket*)OS_ThreadInfoGet(OS_ThreadSelf(), 0);
+
+#ifndef EXCLUDE_FILESYS
    if(socket->fileIn)   //override stdin
    {
       bytes = fread(buf, 1, 1, socket->fileIn);
@@ -1550,25 +1563,27 @@ void IPClose(IPSocket *socket)
 }
 
 
-void IPPrintf(IPSocket *socket, char *message, 
-              int arg0, int arg1, int arg2, int arg3)
+int IPPrintf(IPSocket *socket, char *format, 
+              int arg0, int arg1, int arg2, int arg3,
+              int arg4, int arg5, int arg6, int arg7)
 {
-   char buf[500];
+   char buffer[256], *ptr = buffer;
+   int rc = 1;
+   int length;
+
    if(socket == NULL)
-   {
-      printf(message, arg0, arg1, arg2, arg3);
-      return;
-   }
-   if(strcmp(message, "%s") == 0)
-      IPWrite(socket, (uint8*)arg0, (int)strlen((char*)arg0));
+      socket = (IPSocket*)OS_ThreadInfoGet(OS_ThreadSelf(), 0);
+   if(strcmp(format, "%s") == 0)
+      ptr = (char*)arg0;
    else
-   {
-      sprintf(buf, message, arg0, arg1, arg2, arg3, 0, 0, 0, 0);
-      IPWrite(socket, (uint8*)buf, (int)strlen(buf));
-   }
-   if(socket->dontFlush == 0 || strstr(message, "\n"))
+      rc = sprintf(buffer, format, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+   length = strlen(ptr);
+   IPWrite(socket, (unsigned char*)ptr, length);
+   if(socket->dontFlush == 0 || strstr(format, "\n"))
       IPWriteFlush(socket);
+   return rc;
 }
+
 
 
 void IPTick(void)

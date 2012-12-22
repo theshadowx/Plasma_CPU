@@ -92,6 +92,22 @@ uint32 OS_AsmInterruptEnable(uint32 enableInterrupt)
 void OS_AsmInterruptInit(void)
 {
 }
+
+void UartInit(void) {}
+uint8 UartRead(void) {return getch();}
+int OS_kbhit(void) {return kbhit();}
+void UartPrintf(const char *format,
+                int arg0, int arg1, int arg2, int arg3,
+                int arg4, int arg5, int arg6, int arg7)
+{
+   char buffer[256], *ptr = buffer;
+
+   sprintf(buffer, format, arg0, arg1, arg2, arg3,
+           arg4, arg5, arg6, arg7);
+   while(ptr[0])
+      putchar(*ptr++);
+}
+
 #endif  //WIN32
 
 

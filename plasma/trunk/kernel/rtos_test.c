@@ -108,12 +108,15 @@ static void TestHeap(void)
          for(k = 0; k < value; ++k)
          {
             if(ptr[k] != value)
+            {
                printf("Error\n");
+               break;
+            }
          }
          OS_HeapFree(ptrs[j]);
       }
       size[j] = (uint8)(rand() & 255);
-      ptrs[j] = OS_HeapMalloc(NULL, size[j]);
+      ptrs[j] = (uint8*)OS_HeapMalloc(NULL, size[j]);
       if(ptrs[j] == NULL)
          printf("malloc NULL\n");
       else
@@ -512,12 +515,12 @@ void MainThread(void *Arg)
    HtmlInit(1);
 #endif
 
-#ifdef INCLUDE_HTML
+#ifdef INCLUDE_UART_PACKETS
    IPInit(NULL, macAddress, "plasma");
    HtmlInit(1);
 #endif
 
-#ifdef INCLUDE_CONSOLE
+#if !defined(EXCLUDE_CONSOLE) && (defined(INCLUDE_ETH) || defined(INCLUDE_UART_PACKETS))
    ConsoleInit();
 #endif
 

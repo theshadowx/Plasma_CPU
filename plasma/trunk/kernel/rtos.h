@@ -92,7 +92,7 @@ int   memcmp(const void *cs, const void *ct, unsigned long bytes);
 void *memset(void *dst, int c, unsigned long bytes);
 int   abs(int n);
 int   atoi(const char *s);
-int   rand(void);
+unsigned int rand(void);
 void  srand(unsigned int seed);
 long  strtol(const char *s, char **end, int base);
 char *itoa(int num, char *dst, int base);
@@ -102,12 +102,13 @@ char *itoa(int num, char *dst, int base);
    int sscanf(const char *s, const char *format, ...);
 #endif
 
+#define printf     UartPrintf
 #ifndef _LIBC
    #define assert(A) if((A)==0){OS_Assert();UartPrintfCritical("\r\nAssert %s:%d\r\n", __FILE__, __LINE__);}
-   #define printf     UartPrintf
-   //#define printf     UartPrintfPoll
    #define scanf      UartScanf
    #define NULL       (void*)0
+#else
+   #define UartPrintfCritical UartPrintf
 #endif //_LIBC
 
 #ifdef INCLUDE_DUMP
@@ -338,7 +339,7 @@ float FP_Log(float x);
 float FP_Pow(float x, float y);
 
 /***************** Filesys ******************/
-#ifdef INCLUDE_FILESYS
+#ifndef EXCLUDE_FILESYS
 #define FILE   OS_FILE
 #define fopen  OS_fopen
 #define fclose OS_fclose
@@ -359,6 +360,8 @@ void OS_fdelete(char *name);
 int OS_flength(char *entry);
 
 /***************** Flash ******************/
+void FlashLock(void);
+void FlashUnlock(void);
 void FlashRead(uint16 *dst, uint32 byteOffset, int bytes);
 void FlashWrite(uint16 *src, uint32 byteOffset, int bytes);
 void FlashErase(uint32 byteOffset);

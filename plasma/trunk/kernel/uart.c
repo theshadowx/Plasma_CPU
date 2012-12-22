@@ -8,14 +8,11 @@
  *    Software 'as is' without warranty.  Author liable for nothing.
  * DESCRIPTION:
  *    Plasma Uart Driver
+ *    UART_PACKETS permits "Ethernet" packets to be sent and received.
  *--------------------------------------------------------------------*/
 #define NO_ELLIPSIS2
 #include "plasma.h"
 #include "rtos.h"
-
-#ifndef NO_PACKETS
-#define SUPPORT_DATA_PACKETS
-#endif
 
 #define BUFFER_WRITE_SIZE 128
 #define BUFFER_READ_SIZE 128
@@ -38,7 +35,7 @@ static Buffer_t *WriteBuffer, *ReadBuffer;
 static OS_Semaphore_t *SemaphoreUart;
 static char PrintfString[BUFFER_PRINTF_SIZE];  //Used in UartPrintf
 
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
 //For packet processing [0xff lengthMSB lengthLSB checksum data]
 static PacketGetFunc_t UartPacketGet;
 static uint8 *PacketCurrent;
@@ -48,8 +45,8 @@ static OS_MQueue_t *UartPacketMQueue;
 static uint32 PacketBytes, PacketLength;
 static uint32 UartPacketOutLength, UartPacketOutByte;
 int CountOk, CountError;
-#endif
 static uint8 *UartPacketOut;
+#endif //UART_PACKETS
 
 
 /******************************************/
@@ -124,7 +121,7 @@ int BufferRead(Buffer_t *buffer, int pend)
 
 
 /******************************************/
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
 static void UartPacketRead(uint32 value)
 {
    uint32 message[4];
@@ -232,7 +229,7 @@ static int UartPacketWrite(void)
    }
    return value;
 }
-#endif
+#endif  //UART_PACKETS
 
 
 static void UartInterrupt(void *arg)
@@ -244,7 +241,7 @@ static void UartInterrupt(void *arg)
    while(status & IRQ_UART_READ_AVAILABLE)
    {
       value = MemoryRead(UART_READ);
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
       if(UartPacketGet && (value == 0xff || PacketBytes))
          UartPacketRead(value);
       else
@@ -256,7 +253,7 @@ static void UartInterrupt(void *arg)
    }
    while(status & IRQ_UART_WRITE_AVAILABLE)
    {
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
       if(UartPacketOut)
       {
          value = UartPacketWrite();
@@ -352,7 +349,7 @@ void UartPrintf(const char *format,
    {
       if(*ptr == '\n')
          UartWrite('\r');
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
       if(*ptr == 0xff)
          *ptr = '@';
 #endif
@@ -362,6 +359,7 @@ void UartPrintf(const char *format,
 }
 
 
+#if 0
 void UartPrintfPoll(const char *format,
                     int arg0, int arg1, int arg2, int arg3,
                     int arg4, int arg5, int arg6, int arg7)
@@ -389,25 +387,27 @@ void UartPrintfPoll(const char *format,
    if(SemaphoreUart)
       OS_SemaphorePost(SemaphoreUart);
 }
+#endif
 
 
 void UartPrintfCritical(const char *format,
                         int arg0, int arg1, int arg2, int arg3,
                         int arg4, int arg5, int arg6, int arg7)
 {
+   char buffer[128];
    uint8 *ptr;
    uint32 state;
 
    state = OS_CriticalBegin();
-   sprintf(PrintfString, format, arg0, arg1, arg2, arg3,
+   sprintf(buffer, format, arg0, arg1, arg2, arg3,
            arg4, arg5, arg6, arg7);
-   ptr = (uint8*)PrintfString;
+   ptr = (uint8*)buffer;
    while(*ptr)
    {
       while((MemoryRead(IRQ_STATUS) & IRQ_UART_WRITE_AVAILABLE) == 0)
          ;
       MemoryWrite(UART_WRITE, *ptr++);
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
       if(UartPacketOut && UartPacketOutByte - 4 < UartPacketOutLength)
       {
          ++UartPacketOutByte;
@@ -415,13 +415,7 @@ void UartPrintfCritical(const char *format,
       }
 #endif
    }
-   memset(PrintfString, 0, sizeof(PrintfString));
    OS_CriticalEnd(state);
-}
-
-
-void UartPrintfNull(void)
-{
 }
 
 
@@ -458,7 +452,7 @@ void UartScanf(const char *format,
 }
 
 
-#ifdef SUPPORT_DATA_PACKETS
+#ifdef UART_PACKETS
 void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
                       int PacketSize, 
                       OS_MQueue_t *mQueue)
@@ -476,7 +470,7 @@ void UartPacketSend(uint8 *data, int bytes)
    UartPacketOut = data;
    OS_InterruptMaskSet(IRQ_UART_WRITE_AVAILABLE);
 }
-#else
+#else  //UART_PACKETS
 void UartPacketConfig(PacketGetFunc_t PacketGetFunc, 
                       int PacketSize, 
                       OS_MQueue_t *mQueue)
