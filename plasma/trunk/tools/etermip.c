@@ -58,6 +58,7 @@
 #define ETHERNET_FRAME_TYPE   12       //2      IP=0x0800; ARP=0x0806
 #define IP_PROTOCOL           23       //1      TCP=0x06;PING=0x01;UDP=0x11
 #define IP_SOURCE             26       //4
+#define PACKET_SIZE           600
 
 static const unsigned char ethernetAddressNull[] =    {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static const unsigned char ethernetAddressPhantom[] = {0x00, 0x10, 0xdd, 0xce, 0x15, 0xd4};
@@ -76,7 +77,8 @@ static int EthernetActive;
    extern void *IPFrameGet(int freeCount);
    extern int IPProcessEthernetPacket(void *frameIn, int length);
    extern void IPTick(void);
-   extern void IPInit(void (*frameSendFunction)(), unsigned char macAddress[6], char name[6]);
+   extern void IPInit(void (*frameSendFunction)(const unsigned char *, int), 
+                      unsigned char macAddress[6], char name[6]);
    extern void HtmlInit(int UseFiles);
    extern void ConsoleInit(void);
    static void *ethFrame;
@@ -193,7 +195,7 @@ void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_cha
 #endif
    (void)param;
 
-   if(EthernetActive == 0)
+   if(EthernetActive == 0 || header->len > PACKET_SIZE)
       return;
    if(pkt_data[ETHERNET_FRAME_TYPE] != 0x08)
       return;  //not IP or ARP
@@ -287,13 +289,17 @@ long SerialOpen(char *name, long baud)
    DCB dcb;
    COMMTIMEOUTS comm_timeouts;
    BOOL rc;
+   printf("%s:", name);
    serial_handle = CreateFile(name, GENERIC_READ|GENERIC_WRITE,
       0, NULL, OPEN_EXISTING, 0, NULL);
    if(serial_handle == INVALID_HANDLE_VALUE) 
-      printf("Serial Port In Use!\n");
+   {
+      printf("no");
+      return -1;
+   }
    rc = SetupComm(serial_handle, 16000, 16000);
    if(rc == FALSE) 
-      printf("Serial port already in use!!!\n");
+      printf("ERROR1\n");
    rc = GetCommState(serial_handle, &dcb);
    if(rc == FALSE) 
       printf("ERROR2\n");
@@ -326,6 +332,7 @@ long SerialOpen(char *name, long baud)
    rc = SetCommTimeouts(serial_handle, &comm_timeouts);
    if(rc == FALSE) 
       printf("ERROR5\n");
+   printf("OK");
    return(0);
 }
 
@@ -384,15 +391,29 @@ int main(int argc, char *argv[])
    unsigned int ticksLast = GetTickCount();
    int length;
    unsigned char buf[80];
+   int i, rc;
+   char name[80];
    DWORD count;
    unsigned int ticks;
    int downloadSkip = 0;
    (void)argc;
    (void)argv;
+   (void)i;
+   (void)rc;
+   (void)name;
 
    //WinPcapInit();
 #ifndef SIMULATE_PLASMA
-   SerialOpen("COM1", 57600);
+   printf("Trying ");
+   for(i = 1; i < 20; ++i)
+   {
+      sprintf(name, "COM%d", i);
+      rc = SerialOpen(name, 57600);
+      if(rc == 0)
+         break;
+      printf(" ");
+   }
+   printf("\n");
    if(argc != 2 || strcmp(argv[1], "none"))
       SendFile();
    else
