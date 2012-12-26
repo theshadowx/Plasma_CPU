@@ -873,16 +873,13 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
       socket->ack += bytes;
 
+      //Ack data
       window = RECEIVE_WINDOW - (socket->ack - socket->ackProcessed);
-      if(window >= 536)
+      frameOut = IPFrameGet(FRAME_COUNT_SEND);
+      if(frameOut)
       {
-         //Ack data
-         frameOut = IPFrameGet(FRAME_COUNT_SEND);
-         if(frameOut)
-         {
-            frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
-            TCPSendPacket(socket, frameOut, TCP_DATA);
-         }
+         frameOut->packet[TCP_FLAGS] = TCP_FLAGS_ACK;
+         TCPSendPacket(socket, frameOut, TCP_DATA);
       }
 
       //Using frame

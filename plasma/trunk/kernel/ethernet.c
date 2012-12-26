@@ -33,7 +33,7 @@ static unsigned char reflect[256];
 static unsigned char reflectNibble[256];
 static OS_Semaphore_t *SemEthernet, *SemEthTransmit;
 static int gIndex;          //byte index into 0x13ff0000 receive buffer
-static int gCheckedBefore;
+static int gCrcChecked;
 
 
 //Read received data from 0x13ff0000.  Data starts with 0x5d+MACaddress.
@@ -43,7 +43,7 @@ static int gCheckedBefore;
 int EthernetReceive(unsigned char *buffer, int length)
 {
    int count;
-   int start, i, j, shift, offset, index;
+   int start, i, j, shift, offset, index, emptyCount;
    int byte, byteNext;
    unsigned long crc;
    int byteCrc;
@@ -53,6 +53,7 @@ int EthernetReceive(unsigned char *buffer, int length)
    //Find the start of a frame
    packetExpected = MemoryRead(IRQ_STATUS) & IRQ_ETHERNET_RECEIVE;
    MemoryRead(ETHERNET_REG);        //clear receive interrupt
+   emptyCount = 0;
 
    //Find dest MAC address
    for(offset = 0; offset <= INDEX_MASK; ++offset)
@@ -70,9 +71,15 @@ int EthernetReceive(unsigned char *buffer, int length)
          }
          if(i == sizeof(gDestMac))
             break;    //found dest MAC
+         emptyCount = 0;
       }
-      else if(byte == BYTE_EMPTY && packetExpected == 0)
-         return 0;
+      else if(byte == BYTE_EMPTY)
+      {
+         if(packetExpected == 0 && ++emptyCount >= 4)
+            return 0;
+      }
+      else
+         emptyCount = 0;
    }
    if(offset > INDEX_MASK)
       return 0;
@@ -125,19 +132,19 @@ int EthernetReceive(unsigned char *buffer, int length)
                   buf[gIndex] = BYTE_EMPTY;
                   gIndex = (gIndex + 1) & INDEX_MASK;
                }
-               gCheckedBefore = 0;
+               gCrcChecked = 0;
                return count;
             }
          }
       }
    }
    gIndex = start;
-   if(gCheckedBefore++ > 1)
+   if(++gCrcChecked > 0)     //if the CPU speed is > 25MHz, change to 1
    {
       buf[gIndex] = BYTE_EMPTY;
       gIndex = (gIndex + 1) & INDEX_MASK;
    }
-   return 0;        //wait for more data
+   return -1;
 }
 
 
@@ -200,18 +207,14 @@ void EthernetThread(void *arg)
    int length;
    int rc;
    unsigned int ticks, ticksLast=0;
-   int ticksWait=50;
    IPFrame *ethFrame=NULL;
    (void)arg;
 
    for(;;)
    {
-      OS_InterruptMaskSet(IRQ_ETHERNET_RECEIVE);      //enable interrupt
-      rc = OS_SemaphorePend(SemEthernet, ticksWait);  //wait for interrupt
-      if(rc)
-         ticksWait = 50;
-      else
-         ticksWait = 2;
+      OS_ThreadSleep(1);                            //give TCP/IP stack CPU time
+      OS_InterruptMaskSet(IRQ_ETHERNET_RECEIVE);    //enable interrupt
+      OS_SemaphorePend(SemEthernet, 50);            //wait for interrupt
 
       //Process all received packets
       for(;;)
@@ -222,7 +225,9 @@ void EthernetThread(void *arg)
             break;
          length = EthernetReceive(ethFrame->packet, PACKET_SIZE);
          if(length == 0)
-            break;
+            break;         //no packet found
+         if(length < 0)
+            continue;      //CRC didn't match; process next packet
          Led(1, 1);
          rc = IPProcessEthernetPacket(ethFrame, length);
          Led(1, 0);
