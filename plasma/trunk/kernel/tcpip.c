@@ -830,7 +830,6 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
                //Remove packet from retransmition queue
                FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
                IPSendFrame(framePrev);
-               break;
             }
          }
          OS_MutexPost(IPMutex);
