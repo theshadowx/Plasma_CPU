@@ -13,7 +13,7 @@
 #define __TCPIP_H__
 #define PACKET_SIZE           600
 #define FRAME_COUNT           100
-#define FRAME_COUNT_SYNC      50
+#define FRAME_COUNT_SYNC      15
 #define FRAME_COUNT_SEND      10
 #define FRAME_COUNT_RCV       5
 #define RETRANSMIT_TIME       110
@@ -70,6 +70,8 @@ struct IPSocket {
    uint8 headerRcv[38];
    struct IPFrame *frameReadHead;
    struct IPFrame *frameReadTail;
+   struct IPFrame *frameFutureHead;
+   struct IPFrame *frameFutureTail;
    int readOffset;
    struct IPFrame *frameSend;
    int sendOffset;

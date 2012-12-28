@@ -59,6 +59,7 @@ static void FtpdReceiver(IPSocket *socket)
    unsigned char buf[600];
    int bytes, state = socket->state;
    FtpdInfo *info = (FtpdInfo*)socket->userPtr;
+   int total = 0;
 
    if(info == NULL || info->done)
       return;
@@ -66,9 +67,10 @@ static void FtpdReceiver(IPSocket *socket)
    {
       bytes = IPRead(socket, buf, sizeof(buf));
       fwrite(buf, 1, bytes, info->file);
+      total += bytes;
    } while(bytes);
 
-   if(state > IP_TCP)
+   if(state > IP_TCP && total == 0)
    {
       fclose(info->file);
       info->done = 1;

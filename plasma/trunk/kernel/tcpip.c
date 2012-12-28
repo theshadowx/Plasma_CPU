@@ -210,7 +210,7 @@ IPFrame *IPFrameGet(int freeCount)
    uint32 state;
 
    state = OS_CriticalBegin();
-   if(FrameFreeCount > freeCount)
+   if(FrameFreeCount >= freeCount)
    {
       frame = FrameFreeHead;
       if(FrameFreeHead)
@@ -666,6 +666,14 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    IPFrame *frameOut, *frame2, *framePrev;
    uint8 *packet, *packetOut;
 
+#if 0
+   //Test missing packets
+   extern void __stdcall Sleep(unsigned long value);
+   Sleep(1);
+   if(rand() % 13 == 0)
+      return 0;
+#endif
+
    packet = frameIn->packet;
    length = frameIn->length;
 
@@ -809,7 +817,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          (packet[TCP_FLAGS] & (TCP_FLAGS_RST | TCP_FLAGS_FIN)) == 0 &&
          socket->resentDone == 0)
       {
-         //Detected that packet was lost, resend all
+         //Detected that packet was lost, resend
          if(IPVerbose)
             printf("A");
          OS_MutexPend(IPMutex);
@@ -822,6 +830,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
                //Remove packet from retransmition queue
                FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
                IPSendFrame(framePrev);
+               break;
             }
          }
          OS_MutexPost(IPMutex);
@@ -853,6 +862,9 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       return 0;
    }
 
+   if(frameIn->length > ip_length + IP_VERSION_LENGTH)
+      frameIn->length = (uint16)(ip_length + IP_VERSION_LENGTH);
+
    //Check if RST flag set
    if(packet[TCP_FLAGS] & TCP_FLAGS_RST)
    {
@@ -868,10 +880,44 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          socket->timeout = socket->timeoutReset;
       if(IPVerbose)
          printf("D");
-      if(frameIn->length > ip_length + IP_VERSION_LENGTH)
-         frameIn->length = (uint16)(ip_length + IP_VERSION_LENGTH);
-      FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
-      socket->ack += bytes;
+      for(;;)
+      {
+         FrameInsert(&socket->frameReadHead, &socket->frameReadTail, frameIn);
+         socket->ack += bytes;
+
+         //Check if any frameFuture packets match the seq
+         for(;;)
+         {
+            frame2 = socket->frameFutureTail;
+            if(frame2 == NULL)
+               break;
+            packet = frame2->packet;
+            seq = (packet[TCP_SEQ] << 24) | (packet[TCP_SEQ+1] << 16) | 
+                  (packet[TCP_SEQ+2] << 8) | packet[TCP_SEQ+3];
+            if(socket->ack > seq)
+            {
+               FrameRemove(&socket->frameFutureHead, &socket->frameFutureTail, frame2);
+               FrameFree(frame2);
+            }
+            else if(socket->ack == seq)
+            {
+               FrameRemove(&socket->frameFutureHead, &socket->frameFutureTail, frame2);
+               break;
+            }
+            else
+            {
+               frame2 = NULL;
+               break;
+            }
+         }
+         if(frame2 == NULL)
+            break;
+         ip_length = (packet[IP_LENGTH] << 8) | packet[IP_LENGTH+1];
+         bytes = ip_length - (TCP_DATA - IP_VERSION_LENGTH);
+         frameIn = frame2;
+         if(IPVerbose)
+            printf("d");
+      }
 
       //Ack data
       window = RECEIVE_WINDOW - (socket->ack - socket->ackProcessed);
@@ -887,6 +933,13 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    }
    else if(bytes)
    {
+      if(socket->ack < seq && seq <= socket->ack + 65536)
+      {
+         //Save frame to frameFuture
+         FrameInsert(&socket->frameFutureHead, &socket->frameFutureTail, frameIn);
+         rc = 1;  //using frame
+      }
+
       //Ack with current offset since data missing
       frameOut = IPFrameGet(FRAME_COUNT_SEND);
       if(frameOut)
@@ -897,7 +950,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    }
 
    //Check if FIN flag set
-   if(packet[TCP_FLAGS] & TCP_FLAGS_FIN && socket->ack >= seq)
+   if((packet[TCP_FLAGS] & TCP_FLAGS_FIN) && socket->ack >= seq)
    {
       notify = 1;
       socket->timeout = SOCKET_TIMEOUT;
@@ -1199,6 +1252,8 @@ IPSocket *IPOpen(IPMode_e mode, uint32 ipAddress, uint32 port, IPSockFuncPtr fun
    socket->timeoutReset = SOCKET_TIMEOUT;
    socket->frameReadHead = NULL;
    socket->frameReadTail = NULL;
+   socket->frameFutureHead = NULL;
+   socket->frameFutureTail = NULL;
    socket->readOffset = 0;
    socket->funcPtr = funcPtr;
    socket->userData = 0;
@@ -1346,7 +1401,7 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
 
 #ifndef EXCLUDE_FILESYS
    if(socket->fileOut)   //override stdout
-      return fwrite((char*)buf, 1, length, socket->fileOut);
+      return fwrite((char*)buf, 1, length, (FILE*)socket->fileOut);
 #endif
  
    //printf("IPWrite(0x%x, %d)", Socket, Length);
@@ -1433,11 +1488,11 @@ uint32 IPRead(IPSocket *socket, uint8 *buf, uint32 length)
 #ifndef EXCLUDE_FILESYS
    if(socket->fileIn)   //override stdin
    {
-      bytes = fread(buf, 1, 1, socket->fileIn);
+      bytes = fread(buf, 1, 1, (FILE*)socket->fileIn);
       if(bytes == 0)
       {
          buf[0] = 0;
-         fclose(socket->fileIn);
+         fclose((FILE*)socket->fileIn);
          socket->fileIn = NULL;
          bytes = 1;
       }
@@ -1525,6 +1580,15 @@ static void IPClose2(IPSocket *socket)
       framePrev = frame;
       frame = frame->next;
       FrameRemove(&socket->frameReadHead, &socket->frameReadTail, framePrev);
+      FrameFree(framePrev);
+   }
+
+   //Remove packets from socket future linked list
+   for(frame = socket->frameFutureHead; frame; )
+   {
+      framePrev = frame;
+      frame = frame->next;
+      FrameRemove(&socket->frameFutureHead, &socket->frameFutureTail, framePrev);
       FrameFree(framePrev);
    }
 
@@ -1688,7 +1752,7 @@ static void DnsCallback(IPSocket *socket)
             socket->userData = ipAddress;
             if(socket->userFunc)
             {
-               socket->userFunc(socket, socket->userPtr, ipAddress);
+               socket->userFunc(socket, (uint8*)socket->userPtr, ipAddress);
             }
             break;
          }
