@@ -486,7 +486,7 @@ void Led(int mask, int value)
 {
    mask &= 0xff;
    MemoryWrite(GPIO0_CLEAR, mask);       //clear
-   MemoryWrite(GPIO0_OUT, value & mask); //set LEDs
+   MemoryWrite(GPIO0_SET, value & mask); //set LEDs
 }
 
 

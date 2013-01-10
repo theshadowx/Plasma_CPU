@@ -1381,7 +1381,7 @@ int main(int programEnd, char *argv[])
    (void)programEnd;  //Pointer to end of used memory
    (void)argv;
 
-   UartPrintfCritical("Starting RTOS\n");
+   UartPrintfCritical("Starting RTOS " __DATE__ " " __TIME__ "\n");
    MemoryWrite(IRQ_MASK, 0);
 #ifdef WIN32
    OS_Init((uint32*)HeapSpace, sizeof(HeapSpace));  //For PC simulation

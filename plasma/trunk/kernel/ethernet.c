@@ -25,8 +25,6 @@
 #define COUNT_EMPTY 16           //Count to decide there isn't data
 #define INDEX_MASK  0xffff       //Size of receive buffer
 
-//void dump(const unsigned char *data, int length);
-
 static unsigned char gDestMac[]={0x5d, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static unsigned int CrcTable[256];
 static unsigned char reflect[256];
@@ -163,8 +161,6 @@ void EthernetTransmit(unsigned char *buffer, int length)
       if(MemoryRead(IRQ_STATUS) & IRQ_ETHERNET_TRANSMIT)
          break;
    }
-   //if(i > 100)
-   //   printf("wait=%d ", i);
 
    Led(2, 2);
    while(length < 60 || (length & 3) != 0)
@@ -212,7 +208,6 @@ void EthernetThread(void *arg)
 
    for(;;)
    {
-      OS_ThreadSleep(1);                            //give TCP/IP stack CPU time
       OS_InterruptMaskSet(IRQ_ETHERNET_RECEIVE);    //enable interrupt
       OS_SemaphorePend(SemEthernet, 50);            //wait for interrupt
 
@@ -308,11 +303,50 @@ static void SpinWait(int clocks)
 }
 
 
+//Use the Ethernet MDIO bus to configure the Ethernet PHY
+static int EthernetConfigure(int index, int value)
+{
+   unsigned int data;
+   int i, bit, rc=0;
+   
+   //Format of SMI data: 0101 A4:A0 R4:R0 00 D15:D0
+   if(value <= 0xffff)
+      data = 0x5f800000;  //write
+   else
+      data = 0x6f800000;  //read
+   data |= index << 18 | value;
+   
+   MemoryWrite(GPIO0_SET, ETHERNET_MDIO | ETHERNET_MDIO_WE | ETHERNET_MDC);
+   for(i = 0; i < 34; ++i)
+   {
+      MemoryWrite(GPIO0_SET, ETHERNET_MDC);    //clock high
+      SpinWait(10);
+      MemoryWrite(GPIO0_CLEAR, ETHERNET_MDC);  //clock low
+      SpinWait(10);
+   }
+   for(i = 31; i >= 0; --i)
+   {
+      bit = (data >> i) & 1;
+      if(bit)
+         MemoryWrite(GPIO0_SET, ETHERNET_MDIO);
+      else
+         MemoryWrite(GPIO0_CLEAR, ETHERNET_MDIO);
+      SpinWait(10);         
+      MemoryWrite(GPIO0_SET, ETHERNET_MDC);    //clock high
+      SpinWait(10);
+      rc = rc << 1 | ((MemoryRead(GPIOA_IN) >> 13) & 1);
+      MemoryWrite(GPIO0_CLEAR, ETHERNET_MDC);  //clock low
+      SpinWait(10);
+      if(value > 0xffff && i == 17)
+         MemoryWrite(GPIO0_CLEAR, ETHERNET_MDIO_WE);
+   }
+   MemoryWrite(GPIO0_CLEAR, ETHERNET_MDIO | ETHERNET_MDIO_WE | ETHERNET_MDC);
+   return (rc >> 1) & 0xffff;
+}
+
+
 void EthernetInit(unsigned char MacAddress[6])
 {
-   //Format of SMI data: 0101 A4:A0 R4:R0 00 D15:D0
-   unsigned long data=0x5f800100; //SMI R0 = 10Mbps full duplex
-   //unsigned long data=0x5f800000; //SMI R0 = 10Mbps half duplex
    int i, value;
    volatile unsigned char *buf = (unsigned char*)ETHERNET_RECEIVE;
 
@@ -326,29 +360,18 @@ void EthernetInit(unsigned char MacAddress[6])
       }
    }
 
-   //Configure Ethernet PHY for 10Mbps full duplex via SMI interface
-   MemoryWrite(GPIO0_OUT, ETHERNET_MDIO | ETHERNET_MDIO_WE | ETHERENT_MDC);
-   for(i = 0; i < 34; ++i)
-   {
-      MemoryWrite(GPIO0_OUT, ETHERENT_MDC);    //clock high
-      SpinWait(10);
-      MemoryWrite(GPIO0_CLEAR, ETHERENT_MDC);  //clock low
-      SpinWait(10);
-   }
-   for(i = 31; i >= 0; --i)
-   {
-      value = (data >> i) & 1;
-      if(value)
-         MemoryWrite(GPIO0_OUT, ETHERNET_MDIO);
-      else
-         MemoryWrite(GPIO0_CLEAR, ETHERNET_MDIO);
-      MemoryWrite(GPIO0_OUT, ETHERENT_MDC);    //clock high
-      SpinWait(10);
-      MemoryWrite(GPIO0_CLEAR, ETHERENT_MDC);  //clock low
-      SpinWait(10);
-   }
-   MemoryWrite(GPIO0_CLEAR, ETHERNET_MDIO_WE | ETHERNET_ENABLE);
+   EthernetConfigure(4, 0x0061);        //advertise 10Base-T full duplex
+   EthernetConfigure(0, 0x1300);        //start auto negotiation
+#if 0
+   OS_ThreadSleep(100);
+   printf("reg4=0x%x (0x61)\n", EthernetConfigure(4, 0x10000));
+   printf("reg0=0x%x (0x1100)\n", EthernetConfigure(0, 0x10000));
+   printf("reg1=status=0x%x (0x7809)\n", EthernetConfigure(1, 0x10000));
+   printf("reg5=partner=0x%x (0x01e1)\n", EthernetConfigure(5, 0x10000));
+#endif
 
+   MemoryWrite(GPIO0_CLEAR, ETHERNET_ENABLE);
+   
    //Clear receive buffer
    for(i = 0; i <= INDEX_MASK; ++i)
       buf[i] = BYTE_EMPTY;
@@ -364,5 +387,5 @@ void EthernetInit(unsigned char MacAddress[6])
    OS_InterruptRegister(IRQ_ETHERNET_RECEIVE, EthernetIsr);
 
    //Start receive DMA
-   MemoryWrite(GPIO0_OUT, ETHERNET_ENABLE);
+   MemoryWrite(GPIO0_SET, ETHERNET_ENABLE);
 }

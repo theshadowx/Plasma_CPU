@@ -19,7 +19,7 @@
 #define RETRANSMIT_TIME       110
 #define SOCKET_TIMEOUT        10
 #define SEND_WINDOW           7000
-#define RECEIVE_WINDOW        (536*2)
+#define RECEIVE_WINDOW        (536*10)
 
 typedef enum IPMode_e {
    IP_MODE_UDP,

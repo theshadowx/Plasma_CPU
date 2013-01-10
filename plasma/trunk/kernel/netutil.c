@@ -1137,8 +1137,9 @@ static void ConsoleMkfile(IPSocket *socket, char *argv[])
 static void ConsoleUptime(IPSocket *socket, char *argv[])
 {
    unsigned int ticks;
-   int days, hours, minutes, seconds;
+   unsigned int days, hours, minutes, seconds;
    (void)argv;
+   
    //ticks per sec = 25E6/2^18 = 95.36743 -> 10.48576 ms/tick
    ticks = OS_ThreadTime();      // 1/(1-95.3674/95) = -259
    seconds = (ticks - ticks / 259) / 95;
