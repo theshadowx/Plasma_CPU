@@ -23,7 +23,7 @@
 #define UART_READ         0x20000000
 #define IRQ_MASK          0x20000010
 #define IRQ_STATUS        0x20000020
-#define GPIO0_OUT         0x20000030
+#define GPIO0_SET         0x20000030
 #define GPIO0_CLEAR       0x20000040
 #define GPIOA_IN          0x20000050
 #define COUNTER_REG       0x20000060
@@ -33,7 +33,7 @@
 /*********** GPIO out bits ***************/
 #define ETHERNET_MDIO     0x00200000
 #define ETHERNET_MDIO_WE  0x00400000
-#define ETHERENT_MDC      0x00800000
+#define ETHERNET_MDC      0x00800000
 #define ETHERNET_ENABLE   0x01000000
 
 /*********** Interrupt bits **************/
