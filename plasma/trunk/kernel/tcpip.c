@@ -353,7 +353,7 @@ static void IPFrameReschedule(IPFrame *frame)
    if(frame->packet[TCP_FLAGS] & (TCP_FLAGS_FIN | TCP_FLAGS_SYN))
       ++length;
    if(frame->socket == NULL || frame->socket->state == IP_UDP || length == 0 ||
-      frame->socket->state == IP_PING || ++frame->retryCnt > 4)
+      frame->socket->state == IP_PING || ++frame->retryCnt > 5)
    {
       FrameFree(frame);     //can't be ACK'ed
    }
@@ -661,7 +661,7 @@ uint32 IPAddressSelf(void)
 static int IPProcessTCPPacket(IPFrame *frameIn)
 {
    uint32 seq, ack;
-   int length, ip_length, bytes, rc=0, notify=0, window;
+   int length, ip_length, bytes, rc=0, notify=0, window, show;
    IPSocket *socket, *socketNew;
    IPFrame *frameOut, *frame2, *framePrev;
    uint8 *packet, *packetOut;
@@ -814,26 +814,29 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
          socket->resentDone = 0;
       }
       else if(ack == socket->seqReceived && bytes == 0 &&
-         (packet[TCP_FLAGS] & (TCP_FLAGS_RST | TCP_FLAGS_FIN)) == 0 &&
-         socket->resentDone == 0)
+         (packet[TCP_FLAGS] & (TCP_FLAGS_RST | TCP_FLAGS_FIN)) == 0)
       {
          //Detected that packet was lost, resend
-         if(IPVerbose)
-            printf("A");
+         show = 1;
          OS_MutexPend(IPMutex);
-         for(frame2 = FrameResendHead; frame2; )
+         for(frame2 = FrameResendTail; frame2; )
          {
-            framePrev = frame2;
-            frame2 = frame2->next;
-            if(framePrev->socket == socket)
+            framePrev = frame2->prev;
+            if(frame2->socket == socket)
             {
+               if(frame2->retryCnt > 2)
+                  break;
+               if(IPVerbose && show)
+                  printf("R");
+               show = 0;
                //Remove packet from retransmition queue
-               FrameRemove(&FrameResendHead, &FrameResendTail, framePrev);
-               IPSendFrame(framePrev);
+               FrameRemove(&FrameResendHead, &FrameResendTail, frame2);
+               IPSendFrame(frame2);
+               //break;
             }
+            frame2 = framePrev;
          }
          OS_MutexPost(IPMutex);
-         socket->resentDone = 1;
       }
    }
 
@@ -1674,27 +1677,27 @@ void IPTick(void)
    OS_MutexPend(IPMutex);
 
    //Retransmit timeout packets
-   for(frame = FrameResendHead; frame; )
+   for(frame = FrameResendTail; frame; )
    {
-      frame2 = frame;
-      frame = frame->next;
-      frame2->timeout = (short)(frame2->timeout - (ticks - ticksPrev2));
-      if(--frame2->timeout <= 0)
+      frame2 = frame->prev;
+      frame->timeout = (short)(frame->timeout - (ticks - ticksPrev2));
+      if(--frame->timeout <= 0)
       {
          if(IPVerbose)
-            printf("r" /*"(%x,%x,%d,%d,%d)"*/, (int)frame2, (int)frame2->socket, 
-               frame2->retryCnt, frame2->length - TCP_DATA,
-               frame2->socket->state);
-         FrameRemove(&FrameResendHead, &FrameResendTail, frame2);
-         if(frame2->retryCnt < 4 && frame2->socket->state < IP_CLOSED)
-            IPSendFrame(frame2);
+            printf("r" /*"(%x,%x,%d,%d,%d)"*/, (int)frame, (int)frame->socket, 
+               frame->retryCnt, frame->length - TCP_DATA,
+               frame->socket->state);
+         FrameRemove(&FrameResendHead, &FrameResendTail, frame);
+         if(frame->retryCnt < 5 && frame->socket->state < IP_CLOSED)
+            IPSendFrame(frame);
          else 
          {
-            if(frame2->socket->state == IP_TCP)
-               IPClose(frame2->socket);
-            FrameFree(frame2);
+            if(frame->socket->state == IP_TCP)
+               IPClose(frame->socket);
+            FrameFree(frame);
          }
       }
+      frame = frame2;
    }
 
    if(ticks - ticksPrev >= 95)

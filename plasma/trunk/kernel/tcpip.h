@@ -16,7 +16,7 @@
 #define FRAME_COUNT_SYNC      15
 #define FRAME_COUNT_SEND      10
 #define FRAME_COUNT_RCV       5
-#define RETRANSMIT_TIME       110
+#define RETRANSMIT_TIME       60
 #define SOCKET_TIMEOUT        10
 #define SEND_WINDOW           7000
 #define RECEIVE_WINDOW        (536*10)
