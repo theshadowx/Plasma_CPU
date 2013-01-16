@@ -16,7 +16,7 @@
 #include "tcpip.h"
 
 #ifndef EXCLUDE_DLL
-static void ConsoleRun(IPSocket *socket, char *argv[]);
+void ConsoleRun(IPSocket *socket, char *argv[]);
 #endif
 
 //******************* FTP Server ************************
@@ -1306,7 +1306,7 @@ static unsigned int ConsoleLoadElf(FILE *file, uint8 *ptr)
 }
 
 
-static void ConsoleRun(IPSocket *socket, char *argv[])
+void ConsoleRun(IPSocket *socket, char *argv[])
 {
    FILE *file;
    int bytes, i, run=0;

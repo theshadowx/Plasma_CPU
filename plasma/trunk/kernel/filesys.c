@@ -391,7 +391,7 @@ static int FileFind(OS_FILE *directory, char *name, OS_FileEntry_t *fileEntry)
 {
    int count, rc = -1;
    uint32 blockIndex, blockOffset;
-   uint32 blockIndexEmpty=BLOCK_EOF, blockOffsetEmpty=0;
+   uint32 blockIndexEmpty=BLOCK_EOF, blockOffsetEmpty=0, fileOffsetEmpty=0;
 
    // Loop through files in directory
    for(;;)
@@ -410,6 +410,7 @@ static int FileFind(OS_FILE *directory, char *name, OS_FileEntry_t *fileEntry)
       {
          blockIndexEmpty = blockIndex;
          blockOffsetEmpty = blockOffset;
+         fileOffsetEmpty = directory->fileOffset - sizeof(OS_FileEntry_t);
       }
    }
    if(rc == 0 || directory->fileEntry.mediaType == FILE_MEDIA_FLASH || 
@@ -420,12 +421,13 @@ static int FileFind(OS_FILE *directory, char *name, OS_FileEntry_t *fileEntry)
          BlockRead(directory, blockIndex);
       directory->blockOffset = blockOffset;
    }
-   else
+   else if(blockIndexEmpty != BLOCK_EOF)
    {
       // Backup to empty slot
       if(directory->blockIndex != blockIndexEmpty)
          BlockRead(directory, blockIndexEmpty);
       directory->blockOffset = blockOffsetEmpty;
+      directory->fileOffset = fileOffsetEmpty;
    }
    return rc;
 }

@@ -137,6 +137,7 @@ IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
 void ConsoleInit(void);
 void *IPNameValue(const char *name, void *value);
 int ConsoleGetch(void);
+void ConsoleRun(IPSocket *socket, char *argv[]);
 #ifndef INSIDE_NETUTIL
 int ConsoleScanf(char *format, ...);
 int ConsolePrintf(char *format, ...);
