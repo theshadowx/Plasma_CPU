@@ -443,7 +443,7 @@ static int FileFindRecursive(OS_FILE *directory, char *name,
    {
       if(name[0] == '/')
          ++name;
-      for(length = 0; length < FILE_NAME_SIZE; ++length)
+      for(length = 0; length < FILE_NAME_SIZE-1; ++length)
       {
          if(name[length] == 0 || name[length] == '/')
             break;
@@ -657,6 +657,8 @@ int DirRecursive(char *name)
    int rc;
 
    dir = OS_fopen(name, "r");
+   if(dir == NULL)
+      return 0;
    for(;;)
    {
       rc = OS_fdir(dir, (char*)&fileEntry);
@@ -684,16 +686,22 @@ int OS_ftest(void)
    int i, j;
 
    buf = (char*)malloc(5000);
+   if(buf == NULL)
+      return -1;
    memset(buf, 0, 5000);
    for(count = 0; count < 4000; ++count)
       buf[count] = (char)('A' + (count % 26));
    OS_fmkdir("dir");
    OS_fmkdir("/dir/subdir");
    file = OS_fopen("/dir/subdir/test.txt", "w");
+   if(file == NULL)
+      return -1;
    count = OS_fwrite(buf, 1, 4000, file);
    OS_fclose(file);
    memset(buf, 0, 5000);
    file = OS_fopen("/dir/subdir/test.txt", "r");
+   if(file == NULL)
+      return -1;
    count = OS_fread(buf, 1, 5000, file);
    OS_fclose(file);
    printf("(%s)\n", buf);
@@ -708,9 +716,12 @@ int OS_ftest(void)
       {
          sprintf(buf, "/dir%d/file%d%d", i, i, j);
          file = OS_fopen(buf, "w");
-         sprintf(buf, "i=%d j=%d", i, j);
-         OS_fwrite(buf, 1, 8, file);
-         OS_fclose(file);
+         if(file)
+         {
+            sprintf(buf, "i=%d j=%d", i, j);
+            OS_fwrite(buf, 1, 8, file);
+            OS_fclose(file);
+         }
       }
    }
 

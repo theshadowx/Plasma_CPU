@@ -249,7 +249,7 @@ char *itoa(int num, char *dst, int base)
       negate = 1;
    }
    text[16] = 0;
-   for(place = 15; place >= 0; --place)
+   for(place = 15; place > 0; --place)
    {
       digit = (unsigned int)num % (unsigned int)base;
       if(num == 0 && place < 15 && base == 10 && negate)
@@ -277,13 +277,14 @@ int sprintf(char *s, const char *format,
 {
    int argv[8];
    int argc=0, width, length;
-   char f, text[20], fill;
+   char f=0, prev, text[20], fill;
 
    argv[0] = arg0; argv[1] = arg1; argv[2] = arg2; argv[3] = arg3;
    argv[4] = arg4; argv[5] = arg5; argv[6] = arg6; argv[7] = arg7;
 
    for(;;)
    {
+      prev = f;
       f = *format++;
       if(f == 0)
          return argc;
@@ -342,11 +343,9 @@ int sprintf(char *s, const char *format,
       }
       else
       {
-         if(f == '\n')
+         if(f == '\n' && prev != '\r')
             *s++ = '\r';
          *s++ = f;
-         if(f == '\r' && *format == '\n')
-            *s++ = *format++;
       }
       *s = 0;
    }
@@ -580,6 +579,7 @@ void gmtime_r(const time_t *tp, struct tm *out)
          break;
    }
    out->tm_year = year + 80;
+   out->tm_yday = seconds / SEC_PER_DAY;
    isLeapYear = IsLeapYear(1980 + year);
    for(month = 0; ; ++month) 
    {
@@ -591,7 +591,6 @@ void gmtime_r(const time_t *tp, struct tm *out)
    }
    out->tm_mon = month;
    out->tm_mday = seconds / SEC_PER_DAY;
-   out->tm_yday = DaysUntilMonth[month] + out->tm_mday;
    seconds -= out->tm_mday * SEC_PER_DAY;
    ++out->tm_mday;
    out->tm_hour = seconds / (60 * 60);

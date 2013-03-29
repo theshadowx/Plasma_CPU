@@ -988,13 +988,18 @@ void OS_Job(JobFunc_t funcPtr, void *arg0, void *arg1, void *arg2)
    uint32 message[4];
    int rc;
 
-   OS_SemaphorePend(SemaphoreLock, OS_WAIT_FOREVER);
-   if(jobThread == NULL)
+   if(jobQueue == NULL)
    {
-      jobQueue = OS_MQueueCreate("job", 100, 16);
-      jobThread = OS_ThreadCreate("job", JobThread, NULL, 150, 4000);
+      OS_SemaphorePend(SemaphoreLock, OS_WAIT_FOREVER);
+      if(jobQueue == NULL)
+      {
+         jobQueue = OS_MQueueCreate("job", 100, 16);
+         jobThread = OS_ThreadCreate("job", JobThread, NULL, 150, 4000);
+      }
+      OS_SemaphorePost(SemaphoreLock);
+      if(jobQueue == NULL)
+         return;
    }
-   OS_SemaphorePost(SemaphoreLock);
 
    message[0] = (uint32)funcPtr;
    message[1] = (uint32)arg0;

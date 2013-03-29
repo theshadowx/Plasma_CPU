@@ -87,10 +87,11 @@ static void FtpdServer(IPSocket *socket)
    int bytes;
    int ip0, ip1, ip2, ip3, port0, port1;
    IPSocket *socketOut;
-   FtpdInfo *info = (FtpdInfo*)socket->userPtr;
+   FtpdInfo *info;
 
    if(socket == NULL)
       return;
+   info = (FtpdInfo*)socket->userPtr;
    bytes = IPRead(socket, buf, sizeof(buf)-1);
    buf[bytes] = 0;
    //printf("(%s)\n", buf);
@@ -283,9 +284,13 @@ IPSocket *FtpTransfer(uint32 ip, char *user, char *passwd,
    info->state = 0;
    info->port = 2000;
    socketTransfer = IPOpen(IP_MODE_TCP, 0, info->port, FtpCallbackTransfer);
+   if(socketTransfer == NULL)
+      return NULL;
    socketTransfer->userPtr = info;
    socketTransfer->userFunc = callback;
    socket = IPOpen(IP_MODE_TCP, ip, 21, FtpCallback);
+   if(socket == NULL)
+      return NULL;
    socket->userPtr = info;
    socket->userFunc = callback;
    ptr = socket->headerSend;
@@ -391,6 +396,8 @@ IPSocket *TftpTransfer(uint32 ip, char *filename, uint8 *buffer, int size,
    uint8 buf[512+4];
    int bytes;
    socket = IPOpen(IP_MODE_UDP, ip, 69, TftpCallback);
+   if(socket == NULL)
+      return NULL;
    socket->userPtr = buffer;
    socket->userData = size;
    socket->userFunc = callback;
@@ -531,13 +538,14 @@ static void TelnetServerCallback(IPSocket *socket)
    int bytes, i, k, found, rc;
    char *ptr, *command = (char*)socket->userPtr;
    char command2[COMMAND_BUFFER_SIZE];
-   char *argvStorage[12], **argv = argvStorage+2;
+   char *argv[10];
 
    if(socket->state > IP_TCP)
       return;
    for(;;)
    {
-      bytes = IPRead(socket, bufIn, sizeof(bufIn)-1);
+      memset(bufIn, 0, sizeof(bufIn));
+      bytes = IPRead(socket, bufIn, sizeof(bufIn)-4);
       if(command == NULL)
       {
          socket->userPtr = command = (char*)malloc(COMMAND_BUFFER_SIZE);
@@ -592,7 +600,7 @@ static void TelnetServerCallback(IPSocket *socket)
       }
 
       //Check for file in or out
-      for(k = 1; k < 10; ++k)
+      for(k = 1; k < 9; ++k)
       {
          if(argv[k][0] == '>') //stdout to file?
          {
@@ -862,7 +870,7 @@ static void ConsoleReboot(IPSocket *socket, char *argv[])
    }
    funcPtr = NULL;
    OS_CriticalBegin();
-   funcPtr(NULL);
+   funcPtr(NULL);        //jump to address 0
 }
 
 
@@ -986,7 +994,7 @@ static void ConsoleFlashErase(IPSocket *socket, char *argv[])
       UartPrintfCritical(".");
       FlashErase(bytes);
    }
-   funcPtr(NULL);
+   funcPtr(NULL);      //jump to address 0
 }
 #endif
 
@@ -1040,6 +1048,8 @@ static void DnsResultCallback(IPSocket *socket, uint8 *arg, int ipIn)
       (uint8)(ip >> 24), (uint8)(ip >> 16), (uint8)(ip >> 8), (uint8)ip);
    IPPrintf(socketTelnet, buf);
    socketPing = IPOpen(IP_MODE_PING, ip, 0, PingCallback);
+   if(socketPing == NULL)
+      return;
    socketPing->userPtr = socketTelnet;
    buf[0] = 'A';
    IPWrite(socketPing, (uint8*)buf, 1);
@@ -1128,6 +1138,8 @@ static void ConsoleMkfile(IPSocket *socket, char *argv[])
    OS_FILE *file;
    (void)argv;
    file = fopen("myfile.txt", "w");
+   if(file == NULL)
+      return;
    fwrite("Hello World!", 1, 12, file);
    fclose(file);
    IPPrintf(socket, "Created myfile.txt");
@@ -1233,6 +1245,7 @@ static void ConsoleGrep(IPSocket *socket, char *argv[])
 
 #ifndef EXCLUDE_DLL
 #ifndef WIN32
+#undef DLL_SETUP
 #define DLL_SETUP
 #include "dll.h"
 #else
@@ -1311,8 +1324,9 @@ void ConsoleRun(IPSocket *socket, char *argv[])
    FILE *file;
    int bytes, i, run=0;
    uint8 code[256];
+   char *argv2[12];
    DllFunc funcPtr;
-
+   
    if(strcmp(argv[0], "run") == 0)
    {
       run = 1;
@@ -1331,15 +1345,16 @@ void ConsoleRun(IPSocket *socket, char *argv[])
    {
       funcPtr = (DllFunc)ConsoleLoadElf(file, code);
       fclose(file);
-      argv[-1] = (char*)DllFuncList;  //DllF = argv[-1]
-      argv[-2] = (char*)socket;
+      argv2[0] = (char*)DllFuncList;  //DllF = argv[-1]
+      argv2[1] = (char*)socket;
       for(i = 0; i < 10; ++i)
       {
+         argv2[i + 2] = argv[i];
          if(argv[i] == 0)
             break;
       }
 #ifndef WIN32
-      funcPtr(i, argv);
+      funcPtr(i, argv2 + 2);
 #endif
       return;
    }

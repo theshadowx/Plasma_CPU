@@ -142,6 +142,8 @@
 #define PING_SEQUENCE         40       //2
 #define PING_DATA             44
 
+enum {FRAME_FREE=0, FRAME_ACQUIRED=1, FRAME_IN_LIST};
+
 static void IPClose2(IPSocket *Socket);
 static void IPArp(unsigned char ipAddress[4]);
 
@@ -222,8 +224,8 @@ IPFrame *IPFrameGet(int freeCount)
    OS_CriticalEnd(state);
    if(frame)
    {
-      assert(frame->state == 0);
-      frame->state = 1;
+      assert(frame->state == FRAME_FREE);
+      frame->state = FRAME_ACQUIRED;
    }
    return frame;
 }
@@ -233,8 +235,8 @@ static void FrameFree(IPFrame *frame)
 {
    uint32 state;
 
-   assert(frame->state == 1);
-   frame->state = 0;
+   assert(frame->state == FRAME_ACQUIRED);
+   frame->state = FRAME_FREE;
    state = OS_CriticalBegin();
    frame->next = FrameFreeHead;
    FrameFreeHead = frame;
@@ -245,8 +247,8 @@ static void FrameFree(IPFrame *frame)
 
 static void FrameInsert(IPFrame **head, IPFrame **tail, IPFrame *frame)
 {
-   assert(frame->state == 1);
-   frame->state = 2;
+   assert(frame->state == FRAME_ACQUIRED);
+   frame->state = FRAME_IN_LIST;
    OS_MutexPend(IPMutex);
    frame->prev = NULL;
    frame->next = *head;
@@ -261,13 +263,13 @@ static void FrameInsert(IPFrame **head, IPFrame **tail, IPFrame *frame)
 
 static void FrameRemove(IPFrame **head, IPFrame **tail, IPFrame *frame)
 {
-   assert(frame->state == 2);
-   if(frame->state != 2)
+   assert(frame->state == FRAME_IN_LIST);
+   if(frame->state != FRAME_IN_LIST)
    {
       printf("frame->state=%d\n", frame->state);
       return;
    }
-   frame->state = 1;
+   frame->state = FRAME_ACQUIRED;
    if(frame->prev)
       frame->prev->next = frame->next;
    else
@@ -719,6 +721,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
             memcpy(socketNew, socket, sizeof(IPSocket));
             socketNew->state = IP_TCP;
             socketNew->timeout = SOCKET_TIMEOUT;
+            socketNew->timeoutReset = SOCKET_TIMEOUT * 6;
             socketNew->ack = seq;
             socketNew->ackProcessed = seq + 1;
             socketNew->seq = socketNew->ack + 0x12345678;
@@ -1218,13 +1221,16 @@ void IPInit(IPSendFuncPtr frameSendFunction, uint8 macAddress[6], char name[6])
    FrameSendFunc = frameSendFunction;
    IPMutex = OS_MutexCreate("IPSem");
    IPMQueue = OS_MQueueCreate("IPMQ", FRAME_COUNT*2, 32);
+   frame = (IPFrame*)malloc(sizeof(IPFrame) * FRAME_COUNT);
+   if(frame == NULL)
+      return;
+   memset(frame, 0, sizeof(IPFrame) * FRAME_COUNT);
    for(i = 0; i < FRAME_COUNT; ++i)
    {
-      frame = (IPFrame*)malloc(sizeof(IPFrame));
-      memset(frame, 0, sizeof(IPFrame));
       frame->next = FrameFreeHead;
       frame->prev = NULL;
       FrameFreeHead = frame;
+      ++frame;
    }
    FrameFreeCount = FRAME_COUNT;
 #ifndef WIN32
@@ -1414,9 +1420,9 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
       if(socket->seq - socket->seqReceived >= SEND_WINDOW)
       {
          //printf("l(%d,%d,%d) ", socket->seq - socket->seqReceived, socket->seq, socket->seqReceived);
-         if(self != IPThread && ++tries < 200)
+         if(self != IPThread && ++tries < 20)
          {
-            OS_ThreadSleep(1);
+            OS_ThreadSleep(10);
             continue;
          }
       }
@@ -1428,16 +1434,19 @@ uint32 IPWrite(IPSocket *socket, const uint8 *buf, uint32 length)
          if(socket->frameSend == NULL)
          {
             //printf("L");
-            if(self == IPThread || ++tries > 200)
+            if(self == IPThread || ++tries > 40)
                break;
             else
-               OS_ThreadSleep(1);
+               OS_ThreadSleep(10);
          }
       }
       frameOut = socket->frameSend;
       offset = socket->sendOffset;
       if(frameOut == NULL)
+      {
+         printf("X");
          break;
+      }
       packetOut = frameOut->packet;
 
       if(socket->state == IP_PING)
@@ -1771,6 +1780,8 @@ void IPResolve(char *name, IPCallbackPtr resolvedFunc, void *arg)
    IPSocket *socket;
 
    socket = IPOpen(IP_MODE_UDP, ipAddressDns, DNS_PORT, DnsCallback);
+   if(socket == NULL)
+      return;
    memset(buf, 0, sizeof(buf));
    buf[DNS_ID+1] = 1;
    buf[DNS_FLAGS] = 1;

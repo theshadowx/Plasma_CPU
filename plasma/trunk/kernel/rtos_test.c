@@ -61,7 +61,7 @@ static void TestCLib(void)
    rc = strncmp(s1, "Hellx", 4);
    assert(rc == 0);
    ptr = strstr(s1, "orl");
-   assert(ptr[0] == 'o');
+   assert(ptr && ptr[0] == 'o');
    rc = strlen(s1);
    assert(rc == 13);
    memcpy(s2, s1, rc+1);
@@ -98,6 +98,7 @@ static void TestHeap(void)
 
    printf("TestHeap\n");
    memset(ptrs, 0, sizeof(ptrs));
+   memset(size, 0, sizeof(size));
    for(i = 0; i < 1000; ++i)
    {
       j = rand() & 255;
@@ -164,6 +165,8 @@ static void TestThread(void)
    {
       priority = 50 + i;
       thread = OS_ThreadCreate("MyThread", MyThreadMain, (uint32*)i, priority, 0);
+      if(thread == NULL)
+         return;
       OS_ThreadInfoSet(thread, 0, (void*)(0xabcd + i));
       //printf("Created thread 0x%x\n", thread);
    }
@@ -263,6 +266,8 @@ static void TestMutex(void)
    TestInfo_t info;
    printf("TestMutex\n");
    info.MyMutex = OS_MutexCreate("MyMutex");
+   if(info.MyMutex == NULL)
+      return;
    OS_MutexPend(info.MyMutex);
    OS_MutexPend(info.MyMutex);
    OS_MutexPend(info.MyMutex);
@@ -297,6 +302,8 @@ static void TestMQueue(void)
 
    printf("TestMQueue\n");
    mqueue = OS_MQueueCreate("MyMQueue", 10, 16);
+   if(mqueue == NULL)
+      return;
    strcpy(data, "Test0");
    for(i = 0; i < 16; ++i)
    {
@@ -342,7 +349,7 @@ static void TestTimerThread(void *arg)
 static void TestTimer(void)
 {
    int i;
-   TestInfo_t info;
+   volatile TestInfo_t info;
 
    printf("TestTimer\n");
    info.TimerDone = 0;
@@ -350,7 +357,7 @@ static void TestTimer(void)
    {
       info.MyQueue[i] = OS_MQueueCreate("MyQueue", 10, 16);
       info.MyTimer[i] = OS_TimerCreate("MyTimer", info.MyQueue[i], i);
-      info.MyThread[i] = OS_ThreadCreate("TimerTest", TestTimerThread, &info, 50, 0);
+      info.MyThread[i] = OS_ThreadCreate("TimerTest", TestTimerThread, (void*)&info, 50, 0);
       OS_ThreadInfoSet(info.MyThread[i], 0, (void*)i);
       OS_TimerStart(info.MyTimer[i], 10+i*2, 220+i);
    }
