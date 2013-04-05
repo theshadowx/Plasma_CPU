@@ -1345,8 +1345,8 @@ void ConsoleRun(IPSocket *socket, char *argv[])
    {
       funcPtr = (DllFunc)ConsoleLoadElf(file, code);
       fclose(file);
-      argv2[0] = (char*)DllFuncList;  //DllF = argv[-1]
-      argv2[1] = (char*)socket;
+      argv2[0] = (char*)socket;
+      argv2[1] = (char*)DllFuncList;  //DllF = argv[-1]
       for(i = 0; i < 10; ++i)
       {
          argv2[i + 2] = argv[i];
