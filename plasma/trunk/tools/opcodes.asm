@@ -160,6 +160,12 @@ ArthmeticTest:
    div   $2,$3
    mflo  $4
    sb    $4,0($20)    #E
+   li    $2,-5        #-5%12=-5
+   li    $3,12
+   div   $2,$3
+   mfhi  $4
+   addiu $4,$4,'F'+5
+   sb    $4,0($20)    #F
    sb    $23,0($20)
    sb    $21,0($20)
 
@@ -218,6 +224,16 @@ ArthmeticTest:
    mfhi  $6
    addiu $7,$6,2356+1+'E' #E
    sb    $7,0($20)
+   li    $2,-1
+   li    $3,0
+   mult  $2,$3
+   mfhi  $4
+   addiu $4,$4,'F'
+   sb    $4,0($20)    #F
+   mult  $3,$2
+   mfhi  $4
+   addiu $4,$4,'G'
+   sb    $4,0($20)    #G
    sb    $23,0($20)
    sb    $21,0($20)
 
