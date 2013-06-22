@@ -77,7 +77,9 @@ begin
    c_mult <= lower_reg when mult_func = MULT_READ_LO and negate_reg = '0' else 
              bv_negate(lower_reg) when mult_func = MULT_READ_LO 
                 and negate_reg = '1' else
-             upper_reg when mult_func = MULT_READ_HI else 
+             upper_reg when mult_func = MULT_READ_HI and negate_reg = '0' else 
+             bv_negate(upper_reg) when mult_func = MULT_READ_HI 
+                and negate_reg = '1' else
              ZERO;
    pause_out <= '1' when (count_reg /= "000000") and 
              (mult_func = MULT_READ_LO or mult_func = MULT_READ_HI) else '0';
@@ -130,7 +132,11 @@ begin
                   aa_reg <= a_neg;
                   bb_reg <= b_neg;
                end if;
-               sign_reg <= a(31) xor b(31);
+               if a /= ZERO then
+                  sign_reg <= a(31) xor b(31);
+               else
+                  sign_reg <= '0';
+               end if;
                sign2_reg <= '0';
                upper_reg <= ZERO;
                count_reg <= "100000";
