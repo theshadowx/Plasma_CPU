@@ -163,7 +163,7 @@ package mlite_pack is
    -- For Xilinx
    component RAM16X1D 
       -- synthesis translate_off 
-      generic (INIT : bit_vector := X"16"); 
+      generic (INIT : bit_vector := X"0000"); 
       -- synthesis translate_on 
       port (DPO   : out STD_ULOGIC; 
             SPO   : out STD_ULOGIC; 
@@ -183,7 +183,7 @@ package mlite_pack is
    -- For Xilinx Virtex-5
    component RAM32X1D 
       -- synthesis translate_off 
-      generic (INIT : bit_vector := X"32"); 
+      generic (INIT : bit_vector := X"00000000"); 
       -- synthesis translate_on 
       port (DPO   : out STD_ULOGIC; 
             SPO   : out STD_ULOGIC; 
