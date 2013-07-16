@@ -80,6 +80,7 @@ void HttpServer(IPSocket *socket)
       socket->funcPtr(socket);
       return;
    }
+   socket->dontFlush = 2;
    bytes = IPRead(socket, buf, sizeof(buf)-1);
    if(bytes)
    {

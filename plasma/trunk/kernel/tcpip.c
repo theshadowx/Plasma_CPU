@@ -1651,7 +1651,7 @@ int IPPrintf(IPSocket *socket, char *format,
       rc = sprintf(buffer, format, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
    length = strlen(ptr);
    IPWrite(socket, (unsigned char*)ptr, length);
-   if(socket->dontFlush == 0 || strstr(format, "\n"))
+   if(socket->dontFlush == 0 || (socket->dontFlush < 2 && strstr(format, "\n")))
       IPWriteFlush(socket);
    return rc;
 }

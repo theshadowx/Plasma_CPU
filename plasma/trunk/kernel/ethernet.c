@@ -249,7 +249,7 @@ void EthernetIsr(void *arg)
 
 
 /******************* CRC32 calculations **********************
- * The CRC32 code is modified from Michale Barr's article in 
+ * The CRC32 code is modified from Michael Barr's article in 
  * Embedded Systems Programming January 2000.
  * A CRC is really modulo-2 binary division.  Substraction means XOR. */
 static unsigned int Reflect(unsigned int value, int bits)
