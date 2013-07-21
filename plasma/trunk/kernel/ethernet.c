@@ -32,6 +32,7 @@ static unsigned char reflectNibble[256];
 static OS_Semaphore_t *SemEthernet, *SemEthTransmit;
 static int gIndex;          //byte index into 0x13ff0000 receive buffer
 static int gCrcChecked;
+static volatile int ethTxBusy;
 
 
 //Read received data from 0x13ff0000.  Data starts with 0x5d+MACaddress.
@@ -47,6 +48,9 @@ int EthernetReceive(unsigned char *buffer, int length)
    int byteCrc;
    volatile unsigned char *buf = (unsigned char*)ETHERNET_RECEIVE;
    int packetExpected;
+   
+   while(ethTxBusy)
+      OS_ThreadSleep(1);
 
    //Find the start of a frame
    packetExpected = MemoryRead(IRQ_STATUS) & IRQ_ETHERNET_RECEIVE;
@@ -154,6 +158,7 @@ void EthernetTransmit(unsigned char *buffer, int length)
    volatile unsigned char *buf = (unsigned char*)ETHERNET_TRANSMIT;
 
    OS_SemaphorePend(SemEthTransmit, OS_WAIT_FOREVER);
+   ethTxBusy = 1;
 
    //Wait for previous transfer to complete
    for(i = 0; i < 10000; ++i)
@@ -193,6 +198,14 @@ void EthernetTransmit(unsigned char *buffer, int length)
    length = (length + 12 + 4) >> 2;
    MemoryWrite(ETHERNET_REG, length);
    Led(2, 0);
+
+   //Wait for previous transfer to complete
+   for(i = 0; i < 10000; ++i)
+   {
+      if(MemoryRead(IRQ_STATUS) & IRQ_ETHERNET_TRANSMIT)
+         break;
+   }
+   ethTxBusy = 0;
 
    OS_SemaphorePost(SemEthTransmit);
 }
@@ -389,3 +402,4 @@ void EthernetInit(unsigned char MacAddress[6])
    //Start receive DMA
    MemoryWrite(GPIO0_SET, ETHERNET_ENABLE);
 }
+

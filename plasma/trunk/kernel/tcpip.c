@@ -955,7 +955,8 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
    }
 
    //Check if FIN flag set
-   if((packet[TCP_FLAGS] & TCP_FLAGS_FIN) && socket->ack >= seq)
+   if((packet[TCP_FLAGS] & TCP_FLAGS_FIN) && socket->ack >= seq &&
+      socket->state < IP_CLOSED)
    {
       notify = 1;
       socket->timeout = SOCKET_TIMEOUT;
@@ -969,7 +970,7 @@ static int IPProcessTCPPacket(IPFrame *frameIn)
       ++socket->ack;
       TCPSendPacket(socket, frameOut, TCP_DATA);
       if(socket->state == IP_FIN_SERVER)
-         socket->timeout = SOCKET_TIMEOUT;
+         IPClose2(socket);
       else if(socket->state == IP_TCP)
          socket->state = IP_FIN_CLIENT;
    }
