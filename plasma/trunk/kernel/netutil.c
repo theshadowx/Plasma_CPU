@@ -1350,7 +1350,7 @@ void ConsoleRun(IPSocket *socket, char *argv[])
       for(i = 0; i < 10; ++i)
       {
          argv2[i + 2] = argv[i];
-         if(argv[i] == 0)
+         if(argv[i] == NULL || argv[i][0] == 0)
             break;
       }
 #ifndef WIN32
