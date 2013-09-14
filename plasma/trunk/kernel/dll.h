@@ -180,6 +180,13 @@ const DllFunc DllFuncList[] = {
    (DllFunc)IPResolve,
    (DllFunc)IPAddressSelf,
    (DllFunc)IPNameValue,
+   (DllFunc)FP_Cmp,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
+   DllDummy,
    DllDummy,
    DllDummy
 };
@@ -304,8 +311,15 @@ enum {
    ENUM_IPResolve,
    ENUM_IPAddressSelf,
    ENUM_IPNameValue,
+   ENUM_FP_Cmp,
    ENUM_USER0,
    ENUM_USER1,
+   ENUM_USER2,
+   ENUM_USER3,
+   ENUM_USER4,
+   ENUM_USER5,
+   ENUM_USER6,
+   ENUM_USER7,
    ARGV_SOCKET = -2
 };
 
@@ -441,6 +455,8 @@ extern const DllFunc *DllF;
 #define IPResolve DllF[ENUM_IPResolve]
 #define IPAddressSelf (int)DllF[ENUM_IPAddressSelf]
 #define IPNameValue DllF[ENUM_IPNameValue]
+#define UserFunc0 DllF[ENUM_USER0]
+#define UserFunc1 DllF[ENUM_USER1]
 #define time(P) OS_ThreadTime()
 
 #endif //DLL_CALL
@@ -477,13 +493,19 @@ int __start(int argc, char *argv[])
 typedef float (*DllFloat)(float);
 typedef float (*DllFloat2)(float,float);
 typedef long (*DllFloat3)(float);
+typedef int (*DllFloat4)(float,float);
+typedef float (*DllFloat5)(long a);
 float __negsf2(float a) {return ((DllFloat)DllF[ENUM_NEGSF2])(a);}
 float __addsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_ADDSF3])(a,b);}
 float __subsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_SUBSF3])(a,b);}
 float __mulsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_MULSF3])(a,b);}
 float __divsf3(float a,float b) {return ((DllFloat2)DllF[ENUM_DIVSF3])(a,b);}
 long __fixsfsi(float a) {return ((DllFloat3)DllF[ENUM_FIXSFSI])(a);}
-float __floatsisf(long a) {return ((DllFloat)DllF[ENUM_FLOATSISF])(a);}
+float __floatsisf(long a) {return ((DllFloat5)DllF[ENUM_FLOATSISF])(a);}
+int __ltsf2(float a,float b) {return ((DllFloat4)DllF[ENUM_FP_Cmp])(a,b);}
+int __lesf2(float a,float b) {return ((DllFloat4)DllF[ENUM_FP_Cmp])(a,b);}
+int __gtsf2(float a,float b) {return ((DllFloat4)DllF[ENUM_FP_Cmp])(a,b);}
+int __gesf2(float a,float b) {return ((DllFloat4)DllF[ENUM_FP_Cmp])(a,b);}
 #endif
 
 #endif //DLL_ENTRY
@@ -605,6 +627,7 @@ const char * const DllStrings[] = {
    "IPResolve",
    "IPAddressSelf",
    "IPNameValue",
+   "FP_Cmp",
    NULL
 };
 #endif //DLL_STRINGS
