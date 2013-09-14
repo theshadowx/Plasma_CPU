@@ -216,9 +216,9 @@ long strtol(const char *s, char **end, int base)
       ch = *s++;
       if('0' <= ch && ch <= '9')
          ch -= '0';
-      else if('A' <= ch && ch <= 'Z')
+      else if('A' <= ch && ch < base - 10 + 'A')
          ch = ch - 'A' + 10;
-      else if('a' <= ch && ch <= 'z')
+      else if('a' <= ch && ch < base - 10 + 'a')
          ch = ch - 'a' + 10;
       else
          break;
