@@ -229,7 +229,8 @@ void OS_HeapFree(void *block)
    HeapNode_t *bp, *node;
 
    //UartPrintfCritical("OS_HeapFree(0x%x)\n", block);
-   assert(block);
+   if(block == NULL)
+      return;
    bp = (HeapNode_t*)block - 1;   //point to block header
    heap = (OS_Heap_t*)bp->next;
    assert(heap->magic == HEAP_MAGIC);
@@ -1332,9 +1333,12 @@ void OS_Init(uint32 *heapStorage, uint32 bytes)
    HeapArray[0] = OS_HeapCreate("Heap", heapStorage, bytes);
    HeapArray[1] = HeapArray[0];
 #ifndef WIN32
+   HeapArray[6] = OS_HeapCreate("2nd", (uint8*)RAM_EXTERNAL_BASE +
+      0x180000, 1024*512);
+   OS_HeapAlternate(HeapArray[0], HeapArray[6]);
    HeapArray[7] = OS_HeapCreate("Alt", (uint8*)RAM_EXTERNAL_BASE + 
       RAM_EXTERNAL_SIZE*2, 1024*1024*60);
-   OS_HeapAlternate(HeapArray[0], HeapArray[7]);
+   OS_HeapAlternate(HeapArray[6], HeapArray[7]);
 #endif
    SemaphoreSleep = OS_SemaphoreCreate("Sleep", 0);
    SemaphoreRelease = OS_SemaphoreCreate("Release", 1);
