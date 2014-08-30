@@ -61,6 +61,20 @@ char *strncat(char *dst, const char *src, int count)
    return dstSave;
 }
 
+#ifdef STRNCAT_SIZE
+char *strncat_size(char *dst, const char *src, int sizeDst)
+{
+   int c=1;
+   char *dstSave=dst;
+   while(*dst)
+      ++dst;
+   sizeDst -= dst - dstSave;
+   while(--sizeDst > 0 && c)
+      c = *dst++ = *src++;
+   *dst = 0;
+   return dstSave;
+}
+#endif
 
 int strcmp(const char *string1, const char *string2)
 {
@@ -183,7 +197,7 @@ int abs(int n)
 
 
 static uint32 Rand1=0x1f2bcda3;
-unsigned int rand(void)
+int rand(void)
 {
    Rand1 = 1664525 * Rand1 + 1013904223;  //from D.E. Knuth and H.W. Lewis
    return Rand1 << 16 | Rand1 >> 16;

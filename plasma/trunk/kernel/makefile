@@ -27,7 +27,7 @@ else
 
 # Customized for Linux
 # See the GNU GCC tab on the Opencores Plasma page
-CC_X86 = gcc -Wall -O -g -I../tools
+CC_X86 = gcc -Wall -O -g -I../tools -m32
 CP = cp
 RM = rm -rf 
 DWIN32 =

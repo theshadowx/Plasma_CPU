@@ -28,7 +28,9 @@
 
 /*************** Structures ***************/
 #ifdef WIN32
-   #define setjmp _setjmp
+   #ifndef setjmp
+      #define setjmp _setjmp
+   #endif
    //x86 registers
    typedef struct jmp_buf2 {  
       uint32 Ebp, Ebx, Edi, Esi, sp, pc, extra[10];
@@ -286,7 +288,7 @@ void OS_HeapRegister(void *index, OS_Heap_t *heap)
 /***************** Thread *****************/
 /******************************************/
 //Linked list of threads sorted by priority
-//The listed list is either ThreadHead (ready to run threads not including
+//The linked list is either ThreadHead (ready to run threads not including
 //the currently running thread) or a list of threads waiting on a semaphore.
 //Must be called with interrupts disabled
 static void OS_ThreadPriorityInsert(OS_Thread_t **head, OS_Thread_t *thread)

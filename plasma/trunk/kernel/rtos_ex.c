@@ -11,6 +11,7 @@
  *    Support simulating multiple CPUs using symmetric multiprocessing.
  *--------------------------------------------------------------------*/
 #include "plasma.h"
+#define NO_ELLIPSIS2
 #include "rtos.h"
 
 /************** WIN32 Simulation Support *************/
@@ -40,6 +41,14 @@ void OS_InitSimulation(void)
       CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)OS_Start, NULL, 0, &ThreadId[i]);
 }
 #endif  //OS_CPU_COUNT > 1
+#else   //NWIN32
+#include <unistd.h>
+#define kbhit() 1
+#define getch getchar
+#define putch putchar
+#define Sleep(X) usleep(X*1000)
+#endif  //WIN32
+
 
 static uint32 Memory[8];
 
@@ -107,8 +116,6 @@ void UartPrintf(const char *format,
    while(ptr[0])
       putchar(*ptr++);
 }
-
-#endif  //WIN32
 
 
 #if OS_CPU_COUNT > 1

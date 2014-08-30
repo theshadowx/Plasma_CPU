@@ -30,6 +30,7 @@ typedef unsigned char  uint8;
    #define _CRT_SECURE_NO_WARNINGS 1
    #include <stdio.h>
    #include <assert.h>
+   #include <setjmp.h>
    #define _LIBC
    uint32 MemoryRead(uint32 Address);
    void MemoryWrite(uint32 Address, uint32 Value);
@@ -92,12 +93,16 @@ int   memcmp(const void *cs, const void *ct, unsigned long bytes);
 void *memset(void *dst, int c, unsigned long bytes);
 int   abs(int n);
 int   atoi(const char *s);
-unsigned int rand(void);
+int   rand(void);
 void  srand(unsigned int seed);
 long  strtol(const char *s, char **end, int base);
 char *itoa(int num, char *dst, int base);
 
 #ifndef NO_ELLIPSIS
+   typedef char* va_list;
+   #define va_start(AP,P) (AP=(char*)&(P)+sizeof(char*))
+   #define va_arg(AP,T) (*(T*)((AP+=sizeof(T))-sizeof(T)))
+   #define va_end(AP)
    int sprintf(char *s, const char *format, ...);
    int sscanf(const char *s, const char *format, ...);
 #endif
@@ -105,8 +110,8 @@ char *itoa(int num, char *dst, int base);
 #define printf     UartPrintf
 #ifndef _LIBC
    #define assert(A) if((A)==0){OS_Assert();UartPrintfCritical("\r\nAssert %s:%d\r\n", __FILE__, __LINE__);}
-   #define scanf      UartScanf
-   #define NULL       (void*)0
+   #define scanf     UartScanf
+   #define NULL      (void*)0
 #else
    #define UartPrintfCritical UartPrintf
 #endif //_LIBC
@@ -146,11 +151,13 @@ char *itoa(int num, char *dst, int base);
 #endif
 
 /***************** Assembly **************/
+#ifndef WIN32
 typedef uint32 jmp_buf[20];
-extern uint32 OS_AsmInterruptEnable(uint32 state);
-extern void OS_AsmInterruptInit(void);
 extern int setjmp(jmp_buf env);
 extern void longjmp(jmp_buf env, int val);
+#endif
+extern uint32 OS_AsmInterruptEnable(uint32 state);
+extern void OS_AsmInterruptInit(void);
 extern uint32 OS_AsmMult(uint32 a, uint32 b, unsigned long *hi);
 extern void *OS_Syscall(uint32 value);
 

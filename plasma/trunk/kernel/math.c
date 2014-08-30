@@ -12,12 +12,14 @@
  * IEEE_fp = sign(1) | exponent(8) | fraction(23)
  * cos(x)=1-x^2/2!+x^4/4!-x^6/6!+...
  * exp(x)=1+x+x^2/2!+x^3/3!+...
+ * e^x=2^y; ln2(e^x)=ln2(2^y); ln(e^x)/ln(2)=y; x/ln(2)=y; e^x=2^(x/ln(2))
  * ln(1+x)=x-x^2/2+x^3/3-x^4/4+...
  * atan(x)=x-x^3/3+x^5/5-x^7/7+...
  * pow(x,y)=exp(y*ln(x))
  * x=tan(a+b)=(tan(a)+tan(b))/(1-tan(a)*tan(b))
  * atan(x)=b+atan((x-atan(b))/(1+x*atan(b)))
  * ln(a*x)=ln(a)+ln(x); ln(x^n)=n*ln(x)
+ * sqrt(x)=sqrt(f*2^e)=sqrt(f)*2^(e/2)
  *--------------------------------------------------------------------*/
 #include "rtos.h"
 
@@ -354,8 +356,8 @@ float FP_Cos(float rad)
       rad = FP_Sub(rad, PI2);
    while(FP_Cmp(rad, (float)0.0) < 0) 
       rad = FP_Add(rad, PI2);
-   answer = 1.0;
-   sign = 1.0;
+   answer = (float)1.0;
+   sign = (float)1.0;
    if(FP_Cmp(rad, PI) >= 0) 
    {
       rad = FP_Sub(rad, PI);
@@ -367,8 +369,8 @@ float FP_Cos(float rad)
       sign = FP_Neg(sign);
    }
    x2 = FP_Mult(rad, rad);
-   top = 1.0;
-   bottom = 1.0;
+   top = (float)1.0;
+   bottom = (float)1.0;
    for(n = 2; n < 12; n += 2) 
    {
       top = FP_Mult(top, FP_Neg(x2));
@@ -454,7 +456,7 @@ float FP_Exp(float x)
    float answer, top, bottom, mult;
    int n;
 
-   mult = 1.0;
+   mult = (float)1.0;
    while(FP_Cmp(x, (float)2.0) > 0) 
    {
       mult = FP_Mult(mult, e2);
@@ -467,7 +469,7 @@ float FP_Exp(float x)
    }
    answer = FP_Add((float)1.0, x);
    top = x;
-   bottom = 1.0;
+   bottom = (float)1.0;
    for(n = 2; n < 15; ++n) 
    {
       top = FP_Mult(top, x);
@@ -483,25 +485,25 @@ float FP_Log(float x)
    const float log_2=(float)0.69314718; /*log(2.0)*/
    int n;
    float answer, top, add;
-   add = 0.0;
-   while(FP_Cmp(x, 16.0) > 0)
+   add = (float)0.0;
+   while(FP_Cmp(x, (float)16.0) > 0)
    {
       x = FP_Mult(x, (float)0.0625);
       add = FP_Add(add, (float)(log_2 * 4));
    }
-   while(FP_Cmp(x, 1.5) > 0)
+   while(FP_Cmp(x, (float)1.5) > 0)
    {
-      x = FP_Mult(x, 0.5);
+      x = FP_Mult(x, (float)0.5);
       add = FP_Add(add, log_2);
    }
    while(FP_Cmp(x, 0.5) < 0)
    {
-      x = FP_Mult(x, 2.0);
+      x = FP_Mult(x, (float)2.0);
       add = FP_Sub(add, log_2);
    }
-   x = FP_Sub(x, 1.0);
-   answer = 0.0;
-   top = -1.0;
+   x = FP_Sub(x, (float)1.0);
+   answer = (float)0.0;
+   top = (float)-1.0;
    for(n = 1; n < 14; ++n) 
    {
       top = FP_Mult(top, FP_Neg(x));
