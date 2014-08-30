@@ -157,15 +157,16 @@ int main(int argc, char *argv[])
       }
       if((int)elfProgram->p_vaddr < BUF_SIZE)
       {
-         //printf("[0x%x,0x%x,0x%x,0x%x,0x%x]\n", elfProgram->p_vaddr,
-         //   elfProgram->p_offset, elfProgram->p_filesz, elfProgram->p_memsz,
-         //   elfProgram->p_flags);
+         printf("[vaddr=0x%x,offset=0x%x,filesz=0x%x,memsz=0x%x,flags=0x%x]\n", 
+            elfProgram->p_vaddr, elfProgram->p_offset, 
+            elfProgram->p_filesz, elfProgram->p_memsz,
+            elfProgram->p_flags);
          if((int)elfProgram->p_vaddr < 0)
             elfProgram->p_vaddr = 0;
          memcpy(code + elfProgram->p_vaddr, buf + elfProgram->p_offset,
                  elfProgram->p_filesz);
          length = elfProgram->p_vaddr + elfProgram->p_filesz;
-         //printf("length = %d 0x%x\n", length, length);
+         printf("length = %d = 0x%x\n", length, length);
       }
    }
 
@@ -202,10 +203,10 @@ int main(int argc, char *argv[])
 
    if(bss_start == 0)
       bss_start = length;
-   if(length > bss_start - elfHeader->e_entry)
-   {
-      length = bss_start - elfHeader->e_entry;
-   }
+   //if(length > bss_start - elfHeader->e_entry)
+   //{
+   //   length = bss_start - elfHeader->e_entry;
+   //}
    if(bss_start == length)
    {
       bss_start = length;
